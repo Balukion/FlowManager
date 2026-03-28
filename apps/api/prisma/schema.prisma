@@ -1,0 +1,463 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum OAuthProvider {
+  GOOGLE
+  GITHUB
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum InvitationStatus {
+  PENDING
+  VIEWED
+  ACCEPTED
+  EXPIRED
+  DECLINED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum StepStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum NotificationType {
+  STEP_ASSIGNED
+  DEADLINE_APPROACHING
+  TASK_STATUS_CHANGED
+  WORKSPACE_INVITATION
+  COMMENT_MENTION
+}
+
+enum ActivityAction {
+  WORKSPACE_CREATED
+  WORKSPACE_UPDATED
+  WORKSPACE_DELETED
+  OWNERSHIP_TRANSFERRED
+  MEMBER_ADDED
+  MEMBER_REMOVED
+  MEMBER_ROLE_CHANGED
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  PROJECT_ARCHIVED
+  PROJECT_UNARCHIVED
+  PROJECT_DELETED
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_DELETED
+  TASK_MOVED
+  TASK_STATUS_CHANGED
+  TASK_PRIORITY_CHANGED
+  TASK_ASSIGNEE_CHANGED
+  TASK_REORDERED
+  STEP_CREATED
+  STEP_UPDATED
+  STEP_DELETED
+  STEP_STATUS_CHANGED
+  STEP_REORDERED
+  STEP_ASSIGNED
+  STEP_UNASSIGNED
+  COMMENT_CREATED
+  COMMENT_EDITED
+  COMMENT_DELETED
+  LABEL_CREATED
+  LABEL_UPDATED
+  LABEL_DELETED
+  TASK_LABEL_ADDED
+  TASK_LABEL_REMOVED
+  INVITATION_SENT
+  INVITATION_ACCEPTED
+  INVITATION_DECLINED
+  INVITATION_CANCELLED
+  INVITATION_RESENT
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id                              String    @id @default(uuid())
+  name                            String
+  email                           String    @unique
+  password_hash                   String
+  avatar_url                      String?
+  timezone                        String    @default("UTC")
+  email_verified                  Boolean   @default(false)
+  email_verified_at               DateTime?
+  email_verification_token        String?
+  email_verification_expires_at   DateTime?
+  password_reset_token            String?
+  password_reset_expires_at       DateTime?
+  password_changed_at             DateTime?
+  failed_login_attempts           Int       @default(0)
+  locked_until                    DateTime?
+  settings                        Json?
+  created_at                      DateTime  @default(now())
+  updated_at                      DateTime  @updatedAt
+  deleted_at                      DateTime?
+
+  refresh_tokens      RefreshToken[]
+  oauth_accounts      UserOAuthAccount[]
+  owned_workspaces    Workspace[]          @relation("WorkspaceOwner")
+  workspace_members   WorkspaceMember[]
+  sent_invitations    Invitation[]         @relation("InvitationSender")
+  owned_projects      Project[]            @relation("ProjectOwner")
+  created_projects    Project[]            @relation("ProjectCreator")
+  assigned_tasks      Task[]               @relation("TaskAssignee")
+  created_tasks       Task[]               @relation("TaskCreator")
+  overridden_tasks    Task[]               @relation("TaskStatusOverride")
+  created_steps       Step[]
+  step_assignments    StepAssignment[]     @relation("AssignedUser")
+  given_assignments   StepAssignment[]     @relation("AssignedBy")
+  removed_assignments StepAssignment[]     @relation("UnassignedBy")
+  comments            Comment[]
+  deleted_comments    Comment[]            @relation("CommentDeleter")
+  comment_mentions    CommentMention[]
+  created_labels      Label[]
+  task_watchers       TaskWatcher[]
+  activity_logs       ActivityLog[]
+  notifications       Notification[]
+
+  @@index([deleted_at])
+  @@map("users")
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid())
+  user_id    String
+  token_hash String
+  ip_address String?
+  user_agent String?
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model RevokedToken {
+  id         String   @id @default(uuid())
+  token_hash String
+  revoked_at DateTime @default(now())
+  expires_at DateTime
+
+  @@map("revoked_tokens")
+}
+
+model UserOAuthAccount {
+  id               String        @id @default(uuid())
+  user_id          String
+  provider         OAuthProvider
+  provider_user_id String
+  created_at       DateTime      @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("user_oauth_accounts")
+}
+
+model Workspace {
+  id          String    @id @default(uuid())
+  name        String
+  slug        String    @unique
+  description String?
+  color       String?
+  logo_url    String?
+  owner_id    String
+  settings    Json?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+  deleted_at  DateTime?
+
+  owner    User              @relation("WorkspaceOwner", fields: [owner_id], references: [id])
+  members  WorkspaceMember[]
+  projects Project[]
+  labels   Label[]
+  invitations Invitation[]
+  activity_logs ActivityLog[]
+
+  @@index([deleted_at])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id           String    @id @default(uuid())
+  workspace_id String
+  user_id      String
+  role         Role
+  position     Int?
+  last_seen_at DateTime?
+  joined_at    DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([workspace_id, user_id])
+  @@index([user_id])
+  @@map("workspace_members")
+}
+
+model Invitation {
+  id           String           @id @default(uuid())
+  workspace_id String
+  invited_by   String
+  email        String
+  role         Role
+  token_hash   String
+  status       InvitationStatus @default(PENDING)
+  expires_at   DateTime
+  viewed_at    DateTime?
+  accepted_at  DateTime?
+  declined_at  DateTime?
+  created_at   DateTime         @default(now())
+
+  workspace Workspace @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  inviter   User      @relation("InvitationSender", fields: [invited_by], references: [id])
+
+  @@map("invitations")
+}
+
+model Project {
+  id           String        @id @default(uuid())
+  workspace_id String
+  owner_id     String?
+  name         String
+  slug         String
+  description  String?
+  color        String?
+  status       ProjectStatus @default(ACTIVE)
+  deadline     DateTime?
+  created_by   String
+  archived_at  DateTime?
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
+  deleted_at   DateTime?
+
+  workspace     Workspace     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  owner         User?         @relation("ProjectOwner", fields: [owner_id], references: [id])
+  creator       User          @relation("ProjectCreator", fields: [created_by], references: [id])
+  tasks         Task[]
+  activity_logs ActivityLog[]
+
+  @@unique([workspace_id, slug])
+  @@index([deleted_at])
+  @@map("projects")
+}
+
+model Task {
+  id                   String     @id @default(uuid())
+  project_id           String
+  assignee_id          String?
+  title                String
+  number               Int
+  description          String?
+  status               TaskStatus @default(TODO)
+  priority             Priority   @default(LOW)
+  order                Int
+  deadline             DateTime?
+  due_reminder_sent_at DateTime?
+  status_is_manual     Boolean    @default(false)
+  status_overridden_by String?
+  status_overridden_at DateTime?
+  created_by           String
+  created_at           DateTime   @default(now())
+  updated_at           DateTime   @updatedAt
+  deleted_at           DateTime?
+
+  project         Project         @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  assignee        User?           @relation("TaskAssignee", fields: [assignee_id], references: [id])
+  creator         User            @relation("TaskCreator", fields: [created_by], references: [id])
+  status_override User?           @relation("TaskStatusOverride", fields: [status_overridden_by], references: [id])
+  steps           Step[]
+  comments        Comment[]
+  task_labels     TaskLabel[]
+  task_watchers   TaskWatcher[]
+  activity_logs   ActivityLog[]
+
+  @@index([project_id])
+  @@index([deleted_at])
+  @@map("tasks")
+}
+
+model Step {
+  id                   String     @id @default(uuid())
+  task_id              String
+  title                String
+  description          String?
+  status               StepStatus @default(PENDING)
+  order                Int
+  deadline             DateTime?
+  due_reminder_sent_at DateTime?
+  created_by           String
+  created_at           DateTime   @default(now())
+  updated_at           DateTime   @updatedAt
+  deleted_at           DateTime?
+
+  task        Task             @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  creator     User             @relation(fields: [created_by], references: [id])
+  assignments StepAssignment[]
+
+  @@index([task_id])
+  @@index([deleted_at])
+  @@map("steps")
+}
+
+model StepAssignment {
+  id            String    @id @default(uuid())
+  step_id       String
+  user_id       String
+  assigned_by   String
+  assigned_at   DateTime  @default(now())
+  unassigned_by String?
+  unassigned_at DateTime?
+
+  step          Step  @relation(fields: [step_id], references: [id], onDelete: Cascade)
+  user          User  @relation("AssignedUser", fields: [user_id], references: [id])
+  assigner      User  @relation("AssignedBy", fields: [assigned_by], references: [id])
+  unassigner    User? @relation("UnassignedBy", fields: [unassigned_by], references: [id])
+
+  @@unique([step_id, user_id])
+  @@map("step_assignments")
+}
+
+model Comment {
+  id         String    @id @default(uuid())
+  task_id    String
+  user_id    String
+  parent_id  String?
+  content    String
+  edited_at  DateTime?
+  deleted_by String?
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  task     Task             @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  author   User             @relation(fields: [user_id], references: [id])
+  deleter  User?            @relation("CommentDeleter", fields: [deleted_by], references: [id])
+  parent   Comment?         @relation("CommentThread", fields: [parent_id], references: [id])
+  replies  Comment[]        @relation("CommentThread")
+  mentions CommentMention[]
+
+  @@map("comments")
+}
+
+model CommentMention {
+  id         String   @id @default(uuid())
+  comment_id String
+  user_id    String
+  created_at DateTime @default(now())
+
+  comment Comment @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [user_id], references: [id])
+
+  @@unique([comment_id, user_id])
+  @@map("comment_mentions")
+}
+
+model Label {
+  id           String    @id @default(uuid())
+  workspace_id String
+  name         String
+  color        String
+  created_by   String
+  created_at   DateTime  @default(now())
+  deleted_at   DateTime?
+
+  workspace   Workspace   @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  creator     User        @relation(fields: [created_by], references: [id])
+  task_labels TaskLabel[]
+
+  @@map("labels")
+}
+
+model TaskLabel {
+  task_id  String
+  label_id String
+
+  task  Task  @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [label_id], references: [id], onDelete: Cascade)
+
+  @@id([task_id, label_id])
+  @@map("task_labels")
+}
+
+model TaskWatcher {
+  task_id    String
+  user_id    String
+  created_at DateTime @default(now())
+
+  task Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([task_id, user_id])
+  @@map("task_watchers")
+}
+
+model ActivityLog {
+  id           String         @id @default(uuid())
+  workspace_id String
+  project_id   String?
+  task_id      String?
+  user_id      String
+  action       ActivityAction
+  entity_type  String
+  entity_id    String
+  metadata     Json?
+  created_at   DateTime       @default(now())
+
+  workspace Workspace @relation(fields: [workspace_id], references: [id])
+  project   Project?  @relation(fields: [project_id], references: [id])
+  task      Task?     @relation(fields: [task_id], references: [id])
+  user      User      @relation(fields: [user_id], references: [id])
+
+  @@index([project_id])
+  @@index([task_id])
+  @@map("activity_logs")
+}
+
+model Notification {
+  id            String           @id @default(uuid())
+  user_id       String
+  type          NotificationType
+  entity_type   String
+  entity_id     String
+  sent_at       DateTime?
+  failed_at     DateTime?
+  error_message String?
+  created_at    DateTime         @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("notifications")
+}
