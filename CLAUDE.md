@@ -494,6 +494,30 @@ CRON_CLEANUP, CRON_DEADLINE_REMINDERS, CRON_RETRY_NOTIFICATIONS
 
 ---
 
+## Pendências futuras
+
+### Quando for implementar os jobs agendados
+Criar um `JobRunner` simples com interface uniforme antes de implementar os 4 jobs (cleanup, expire-invitations, deadline-reminders, retry-notifications). Cada job deve implementar a mesma interface `{ name, cron, run() }` para facilitar testes e registro centralizado. Sem essa abstração, os jobs viram scripts soltos difíceis de testar isoladamente.
+
+### Testes de activity log como efeito colateral
+Hoje os testes de activity-logs só verificam o GET com logs criados diretamente no banco. Quando os services estiverem implementados, adicionar testes nos módulos correspondentes que verificam que a ação X realmente cria o log Y. Exemplo em tasks.controller.spec.ts:
+```typescript
+// Altera status via API → verifica que log foi criado
+await app.inject({ method: "PATCH", url: `.../status`, body: { status: "DONE" } })
+const log = await prisma.activityLog.findFirst({ where: { task_id, action: "TASK_STATUS_CHANGED" } })
+expect(log?.metadata).toEqual({ from: "TODO", to: "DONE" })
+```
+Fazer isso para: TASK_STATUS_CHANGED, TASK_PRIORITY_CHANGED, STEP_ASSIGNED, STEP_UNASSIGNED, MEMBER_ROLE_CHANGED, COMMENT_EDITED.
+
+### Testes unitários de service para lógica complexa
+Os services com lógica não trivial merecem testes unitários com mocks além dos testes de integração. Prioridade:
+- `tasks.service` — status automático baseado em passos, numeração sequencial
+- `steps.service` — reordenação após deleção, validação de prazo
+- `invitations.service` — geração e validação de token
+Seguir o padrão já estabelecido em `auth.service.spec.ts`.
+
+---
+
 ## Checklist pós-implementação
 
 - [ ] Teste unitário escrito e passando
@@ -511,4 +535,32 @@ CRON_CLEANUP, CRON_DEADLINE_REMINDERS, CRON_RETRY_NOTIFICATIONS
 > Cresce com o projeto. Sempre que resolver um problema difícil, documente aqui.
 > Formato: sintoma → causa → solução.
 
-_Vazia no início — adicione sempre que resolver um problema não óbvio._
+### migrate deploy não aceita --url no Windows
+Sintoma: `unknown or unexpected option: --url` ao rodar `prisma migrate deploy --url=...`.
+Causa: O Prisma CLI não suporta o flag `--url` no comando `migrate deploy`. No Windows, variáveis inline (`VAR=valor comando`) também não funcionam no cmd/PowerShell.
+Solução: No Git Bash, setar a variável antes do comando funciona:
+`DATABASE_URL="postgresql://..." npx prisma migrate deploy`
+Para o banco de testes, rodar esse comando manualmente sempre que criar uma nova migration.
+
+### setErrorHandler do Fastify deve ser registrado antes das rotas
+Sintoma: erros lançados nos handlers retornam o formato padrão do Fastify `{ statusCode, error: "Bad Request", message }` em vez do formato customizado `{ error: { code, message } }`. O handler customizado nunca é chamado.
+Causa: o Fastify herda o error handler do scope pai para os scopes filhos no momento em que os plugins/rotas são registrados. Registrar o handler depois dos `app.register(...)` não retroage aos scopes já criados.
+Solução: sempre chamar `app.setErrorHandler(...)` **antes** de qualquer `app.register(plugin/rotas)` em `app.ts`.
+
+### instanceof falha em fronteiras de módulos ESM no Vitest
+Sintoma: `error instanceof AppError` retorna `false` dentro do `setErrorHandler`, mesmo o erro sendo claramente uma subclasse de `AppError`. O handler customizado não captura os erros da aplicação.
+Causa: o sistema de mocks do Vitest (`vi.mock(...)`) pode gerar identidades de módulo distintas, fazendo a classe `AppError` importada em `app.ts` ser um objeto diferente da usada no service.
+Solução: usar duck-typing no lugar de `instanceof` — `typeof error.statusCode === "number" && typeof error.code === "string"` — para identificar erros da aplicação no error handler.
+
+### @fastify/rate-limit: req.body é undefined no keyGenerator por padrão
+Sintoma: keyGenerator configurado como `(req) => req.body?.email ?? req.ip` sempre retorna o IP — todos os requests compartilham o mesmo contador, independente do email.
+Causa: por padrão, `@fastify/rate-limit` adiciona o hook no estágio `onRequest`, que roda antes do body parsing. `req.body` ainda é `undefined` nesse momento.
+Solução: passar `hook: "preHandler"` na config da rota para que o keyGenerator rode depois do body parsing:
+```typescript
+config: { rateLimit: { hook: "preHandler", keyGenerator: (req) => req.body?.email ?? req.ip } }
+```
+
+### Testes de integração com banco compartilhado colidem quando rodam em paralelo
+Sintoma: `Unique constraint failed` em testes que criam registros com o mesmo email/dado, mesmo com `afterEach` limpando o banco entre testes.
+Causa: Vitest com `pool: "forks"` roda arquivos de teste em paralelo por padrão. Dois arquivos criando o mesmo registro simultaneamente no banco de testes colidem antes do cleanup rodar.
+Solução: adicionar `fileParallelism: false` no `vitest.config.ts` para garantir que os arquivos rodem em série.

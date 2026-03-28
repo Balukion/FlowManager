@@ -1,0 +1,6 @@
+export type NotificationType =
+  | "STEP_ASSIGNED"
+  | "DEADLINE_APPROACHING"
+  | "TASK_STATUS_CHANGED"
+  | "WORKSPACE_INVITATION"
+  | "COMMENT_MENTION";

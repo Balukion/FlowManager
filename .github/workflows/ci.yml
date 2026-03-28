@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  ci:
+    name: Typecheck, Lint & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: flowmanager_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/flowmanager_test
+      DATABASE_TEST_URL: postgresql://postgres:postgres@localhost:5432/flowmanager_test
+      JWT_SECRET: ci_test_secret_at_least_32_characters_long
+      JWT_EXPIRES_IN: 15m
+      REFRESH_TOKEN_EXPIRES_IN: 7d
+      TOKEN_SECRET: ci_test_token_secret_at_least_32_chars
+      INVITATION_TOKEN_EXPIRES_HOURS: 72
+      EMAIL_VERIFICATION_TOKEN_EXPIRES_HOURS: 24
+      PASSWORD_RESET_TOKEN_EXPIRES_HOURS: 1
+      MAX_LOGIN_ATTEMPTS: 5
+      ACCOUNT_LOCK_DURATION_MINUTES: 30
+      ALLOWED_ORIGINS: http://localhost:3000
+      API_URL: http://localhost:3001
+      FRONTEND_URL: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      AWS_ACCESS_KEY_ID: fake_key
+      AWS_SECRET_ACCESS_KEY: fake_secret
+      AWS_REGION: sa-east-1
+      AWS_S3_BUCKET_NAME: fake-bucket
+      S3_MAX_AVATAR_SIZE_MB: 2
+      S3_MAX_LOGO_SIZE_MB: 5
+      RESEND_API_KEY: re_fake_key
+      RESEND_FROM_EMAIL: noreply@test.com
+      RESEND_FROM_NAME: FlowManager
+      DEFAULT_PAGE_SIZE: 20
+      MAX_PAGE_SIZE: 100
+      CRON_CLEANUP: "0 2 * * *"
+      CRON_DEADLINE_REMINDERS: "0 8 * * *"
+      CRON_RETRY_NOTIFICATIONS: "0 * * * *"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx turbo typecheck
+
+      - name: Generate Prisma client
+        run: npm run db:generate --workspace=api
+
+      - name: Run database migrations
+        run: npm run db:migrate --workspace=api
+
+      - name: Run tests
+        run: npx turbo test --filter=api
