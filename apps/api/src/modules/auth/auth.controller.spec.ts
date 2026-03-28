@@ -1,8 +1,14 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../../tests/helpers/setup.js";
 import bcrypt from "bcryptjs";
+
+// O registro de usuário dispara um email de verificação via Resend.
+// Aqui não queremos enviar emails de verdade — mockamos o cliente.
+vi.mock("../../lib/resend.js", () => ({
+  sendEmail: vi.fn().mockResolvedValue({ id: "fake-email-id" }),
+}));
 
 // ─── O que são testes de integração? ─────────────────────────────────────────
 //

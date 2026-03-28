@@ -1,10 +1,16 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../../tests/helpers/setup.js";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { addHours } from "@flowmanager/shared";
+
+// forgot-password envia email de reset via Resend. Mockamos para não
+// depender do serviço externo nos testes.
+vi.mock("../../lib/resend.js", () => ({
+  sendEmail: vi.fn().mockResolvedValue({ id: "fake-email-id" }),
+}));
 
 // ─── O que estamos testando aqui? ────────────────────────────────────────────
 //
