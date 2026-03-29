@@ -56,7 +56,7 @@ export class AuthService {
       to: email,
       subject: "Confirme seu email — FlowManager",
       template: "verify-email",
-      data: { name: data.name, token: verificationToken },
+      data: { name: data.name, token: verificationToken, frontend_url: env.FRONTEND_URL },
     });
 
     const { access_token, refresh_token } = await this._issueTokens(user.id);
@@ -172,7 +172,7 @@ export class AuthService {
       to: normalizedEmail,
       subject: "Redefinição de senha — FlowManager",
       template: "reset-password",
-      data: { name: user.name, token },
+      data: { name: user.name, token, frontend_url: env.FRONTEND_URL },
     });
   }
 

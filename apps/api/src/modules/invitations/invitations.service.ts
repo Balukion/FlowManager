@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { addHours } from "@flowmanager/shared";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../../errors/index.js";
 import { sendEmail } from "../../lib/resend.js";
+import { env } from "../../config/env.js";
 import type { InvitationsRepository } from "./invitations.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
 
@@ -28,7 +29,7 @@ export class InvitationsService {
   }
 
   async createInvitation(workspaceId: string, userId: string, email: string) {
-    await this.requireAdminOrOwner(workspaceId, userId);
+    const { workspace } = await this.requireAdminOrOwner(workspaceId, userId);
 
     const normalizedEmail = email.toLowerCase().trim();
 
@@ -55,9 +56,9 @@ export class InvitationsService {
 
     await sendEmail({
       to: normalizedEmail,
-      subject: "Você foi convidado para um workspace",
+      subject: `Você foi convidado para ${workspace.name}`,
       template: "invitation",
-      data: { token },
+      data: { workspace_name: workspace.name, token, frontend_url: env.FRONTEND_URL },
     });
 
     // Never expose token_hash in response

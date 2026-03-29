@@ -1,7 +1,12 @@
 import Fastify from "fastify";
+import * as Sentry from "@sentry/node";
 import { env } from "./config/env.js";
 import { loggerConfig } from "./config/logger.js";
 import { AppError } from "./errors/index.js";
+
+if (env.SENTRY_DSN) {
+  Sentry.init({ dsn: env.SENTRY_DSN });
+}
 
 import corsPlugin from "./plugins/cors.js";
 import rateLimitPlugin from "./plugins/rate-limit.js";

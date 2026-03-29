@@ -73,3 +73,27 @@ export async function transferOwnership(
   const result = await service.transferOwnership(request.params.id, request.userId, request.body.new_owner_id);
   return reply.status(200).send({ data: result });
 }
+
+export async function presignLogo(
+  request: FastifyRequest<{ Params: { id: string }; Body: { content_type: string; file_size_bytes: number } }>,
+  reply: FastifyReply,
+) {
+  const result = await service.presignLogo(request.params.id, request.userId, request.body);
+  return reply.status(200).send({ data: result });
+}
+
+export async function updateLogo(
+  request: FastifyRequest<{ Params: { id: string }; Body: { logo_url: string } }>,
+  reply: FastifyReply,
+) {
+  const result = await service.updateLogo(request.params.id, request.userId, request.body.logo_url);
+  return reply.status(200).send({ data: result });
+}
+
+export async function deleteLogo(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply,
+) {
+  const result = await service.deleteLogo(request.params.id, request.userId);
+  return reply.status(200).send({ data: result });
+}

@@ -46,3 +46,26 @@ export const transferOwnershipSchema: FastifySchema = {
     additionalProperties: false,
   },
 };
+
+export const presignLogoSchema: FastifySchema = {
+  body: {
+    type: "object",
+    required: ["content_type", "file_size_bytes"],
+    properties: {
+      content_type: { type: "string" },
+      file_size_bytes: { type: "number" },
+    },
+    additionalProperties: false,
+  },
+};
+
+export const updateLogoSchema: FastifySchema = {
+  body: {
+    type: "object",
+    required: ["logo_url"],
+    properties: {
+      logo_url: { type: "string" },
+    },
+    additionalProperties: false,
+  },
+};

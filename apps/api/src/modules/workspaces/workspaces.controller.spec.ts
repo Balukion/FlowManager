@@ -1,7 +1,16 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../../tests/helpers/setup.js";
+
+vi.mock("../../lib/s3.js", () => ({
+  generatePresignedUploadUrl: vi
+    .fn()
+    .mockResolvedValue("https://fake-s3.amazonaws.com/upload?token=fake"),
+  getPublicUrl: vi
+    .fn()
+    .mockReturnValue("https://fake-s3.amazonaws.com/logos/ws-id.jpg"),
+}));
 
 let app: FastifyInstance;
 
@@ -1070,5 +1079,137 @@ describe("activity logs — efeitos colaterais de ações no workspace", () => {
     expect(log).not.toBeNull();
     expect(log?.user_id).toBe(dono.id);
     expect(log?.metadata).toMatchObject({ from: "MEMBER", to: "ADMIN" });
+  });
+});
+
+// ─── POST /workspaces/:id/logo/presign ───────────────────────────────────────
+
+describe("POST /workspaces/:id/logo/presign", () => {
+  it("deve retornar upload_url e final_url para JPEG", async () => {
+    const { access_token } = await registrarUsuario({ email: "owner@test.com" });
+    const wsRes = await criarWorkspace(access_token);
+    const workspaceId = wsRes.json().data.workspace.id;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/workspaces/${workspaceId}/logo/presign`,
+      headers: { authorization: `Bearer ${access_token}` },
+      body: { content_type: "image/jpeg", file_size_bytes: 1024 * 1024 },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const { data } = res.json();
+    expect(data).toHaveProperty("upload_url");
+    expect(data).toHaveProperty("final_url");
+  });
+
+  it("deve retornar 400 para tipo de arquivo inválido", async () => {
+    const { access_token } = await registrarUsuario({ email: "owner2@test.com" });
+    const wsRes = await criarWorkspace(access_token);
+    const workspaceId = wsRes.json().data.workspace.id;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/workspaces/${workspaceId}/logo/presign`,
+      headers: { authorization: `Bearer ${access_token}` },
+      body: { content_type: "image/gif", file_size_bytes: 1024 },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe("INVALID_FILE_TYPE");
+  });
+
+  it("deve retornar 400 quando arquivo excede 5MB", async () => {
+    const { access_token } = await registrarUsuario({ email: "owner3@test.com" });
+    const wsRes = await criarWorkspace(access_token);
+    const workspaceId = wsRes.json().data.workspace.id;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/workspaces/${workspaceId}/logo/presign`,
+      headers: { authorization: `Bearer ${access_token}` },
+      body: { content_type: "image/png", file_size_bytes: 6 * 1024 * 1024 },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe("FILE_TOO_LARGE");
+  });
+
+  it("deve retornar 403 se o usuário não é dono do workspace", async () => {
+    const { access_token: tokenDono } = await registrarUsuario({ email: "dono4@test.com" });
+    const { access_token: tokenMembro } = await registrarUsuario({ email: "membro4@test.com" });
+    const wsRes = await criarWorkspace(tokenDono);
+    const workspaceId = wsRes.json().data.workspace.id;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/workspaces/${workspaceId}/logo/presign`,
+      headers: { authorization: `Bearer ${tokenMembro}` },
+      body: { content_type: "image/png", file_size_bytes: 1024 },
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+// ─── PATCH /workspaces/:id/logo ───────────────────────────────────────────────
+
+describe("PATCH /workspaces/:id/logo", () => {
+  it("deve atualizar o logo_url do workspace", async () => {
+    const { access_token } = await registrarUsuario({ email: "owner5@test.com" });
+    const wsRes = await criarWorkspace(access_token);
+    const workspaceId = wsRes.json().data.workspace.id;
+    const logoUrl = "https://fake-s3.amazonaws.com/logos/ws-logo.png";
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/workspaces/${workspaceId}/logo`,
+      headers: { authorization: `Bearer ${access_token}` },
+      body: { logo_url: logoUrl },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.workspace.logo_url).toBe(logoUrl);
+  });
+
+  it("deve retornar 403 se o usuário não é dono", async () => {
+    const { access_token: tokenDono } = await registrarUsuario({ email: "dono6@test.com" });
+    const { access_token: tokenMembro } = await registrarUsuario({ email: "membro6@test.com" });
+    const wsRes = await criarWorkspace(tokenDono);
+    const workspaceId = wsRes.json().data.workspace.id;
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/workspaces/${workspaceId}/logo`,
+      headers: { authorization: `Bearer ${tokenMembro}` },
+      body: { logo_url: "https://fake.com/logo.png" },
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+// ─── DELETE /workspaces/:id/logo ──────────────────────────────────────────────
+
+describe("DELETE /workspaces/:id/logo", () => {
+  it("deve remover o logo do workspace (logo_url = null)", async () => {
+    const { access_token } = await registrarUsuario({ email: "owner7@test.com" });
+    const wsRes = await criarWorkspace(access_token);
+    const workspaceId = wsRes.json().data.workspace.id;
+
+    // First set a logo
+    await prisma.workspace.update({
+      where: { id: workspaceId },
+      data: { logo_url: "https://fake.com/logo.png" },
+    });
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/workspaces/${workspaceId}/logo`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.workspace.logo_url).toBeNull();
   });
 });

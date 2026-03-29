@@ -1,7 +1,13 @@
+import crypto from "crypto";
 import { generateSlug, generateUniqueSlug } from "@flowmanager/shared";
 import { BadRequestError, ForbiddenError, NotFoundError } from "../../errors/index.js";
+import { generatePresignedUploadUrl, getPublicUrl } from "../../lib/s3.js";
+import { env } from "../../config/env.js";
 import type { WorkspacesRepository } from "./workspaces.repository.js";
 import type { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
+
+const ALLOWED_LOGO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const EXT_MAP: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
 export class WorkspacesService {
   constructor(
@@ -142,6 +148,54 @@ export class WorkspacesService {
     }
 
     const updated = await this.repo.update(workspaceId, { owner_id: newOwnerId });
+    return { workspace: updated };
+  }
+
+  async presignLogo(
+    workspaceId: string,
+    userId: string,
+    data: { content_type: string; file_size_bytes: number },
+  ) {
+    const workspace = await this.repo.findById(workspaceId);
+    if (!workspace) throw new NotFoundError("Workspace não encontrado");
+    if (workspace.owner_id !== userId) throw new ForbiddenError("Apenas o dono pode alterar o logo");
+
+    if (!ALLOWED_LOGO_TYPES.includes(data.content_type)) {
+      throw new BadRequestError("Tipo de arquivo não permitido", "INVALID_FILE_TYPE");
+    }
+
+    const maxBytes = env.S3_MAX_LOGO_SIZE_MB * 1024 * 1024;
+    if (data.file_size_bytes > maxBytes) {
+      throw new BadRequestError(
+        `Arquivo excede o tamanho máximo de ${env.S3_MAX_LOGO_SIZE_MB}MB`,
+        "FILE_TOO_LARGE",
+      );
+    }
+
+    const ext = EXT_MAP[data.content_type];
+    const key = `logos/${workspaceId}/${crypto.randomUUID()}.${ext}`;
+
+    const upload_url = await generatePresignedUploadUrl(key, data.content_type);
+    const final_url = getPublicUrl(key);
+
+    return { upload_url, final_url };
+  }
+
+  async updateLogo(workspaceId: string, userId: string, logoUrl: string) {
+    const workspace = await this.repo.findById(workspaceId);
+    if (!workspace) throw new NotFoundError("Workspace não encontrado");
+    if (workspace.owner_id !== userId) throw new ForbiddenError("Apenas o dono pode alterar o logo");
+
+    const updated = await this.repo.update(workspaceId, { logo_url: logoUrl });
+    return { workspace: updated };
+  }
+
+  async deleteLogo(workspaceId: string, userId: string) {
+    const workspace = await this.repo.findById(workspaceId);
+    if (!workspace) throw new NotFoundError("Workspace não encontrado");
+    if (workspace.owner_id !== userId) throw new ForbiddenError("Apenas o dono pode alterar o logo");
+
+    const updated = await this.repo.update(workspaceId, { logo_url: null });
     return { workspace: updated };
   }
 }

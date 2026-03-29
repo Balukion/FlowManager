@@ -19,7 +19,7 @@ export class ActivityLogsRepository {
   }
 
   async createLog(data: {
-    workspace_id: string;
+    workspace_id?: string | null;
     user_id: string;
     action: string;
     task_id?: string | null;
@@ -27,7 +27,7 @@ export class ActivityLogsRepository {
   }) {
     return prisma.activityLog.create({
       data: {
-        workspace_id: data.workspace_id,
+        workspace_id: data.workspace_id ?? null,
         user_id: data.user_id,
         action: data.action as any,
         task_id: data.task_id ?? null,
