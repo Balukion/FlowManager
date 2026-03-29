@@ -869,3 +869,36 @@ describe("DELETE .../comments/:commentId", () => {
     expect(response.statusCode).toBe(404);
   });
 });
+
+// ─── Activity logs como efeito colateral ─────────────────────────────────────
+
+describe("activity logs — efeitos colaterais de ações em comentários", () => {
+  it("deve criar log COMMENT_EDITED ao editar um comentário", async () => {
+    // Arrange
+    const { access_token, user } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+    const projeto = await criarProjeto(access_token, workspace.id);
+    const tarefa = await criarTarefa(access_token, workspace.id, projeto.id);
+
+    const criado = await criarComentario(access_token, workspace.id, projeto.id, tarefa.id, {
+      content: "Conteúdo original",
+    });
+    const commentId = criado.json().data.comment.id;
+
+    // Act
+    await app.inject({
+      method: "PATCH",
+      url: `/workspaces/${workspace.id}/projects/${projeto.id}/tasks/${tarefa.id}/comments/${commentId}`,
+      headers: { authorization: `Bearer ${access_token}` },
+      body: { content: "Conteúdo editado" },
+    });
+
+    // Assert
+    const log = await prisma.activityLog.findFirst({
+      where: { workspace_id: workspace.id, action: "COMMENT_EDITED" },
+    });
+    expect(log).not.toBeNull();
+    expect(log?.user_id).toBe(user.id);
+    expect(log?.metadata).toMatchObject({ previous_content: "Conteúdo original" });
+  });
+});

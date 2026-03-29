@@ -9,6 +9,17 @@ import swaggerPlugin from "./plugins/swagger.js";
 import prismaPlugin from "./plugins/prisma.js";
 import authPlugin from "./plugins/auth.js";
 import { authRoutes } from "./modules/auth/index.js";
+import { usersRoutes } from "./modules/users/index.js";
+import { workspacesRoutes } from "./modules/workspaces/index.js";
+import { projectsRoutes } from "./modules/projects/index.js";
+import { tasksRoutes } from "./modules/tasks/index.js";
+import { stepsRoutes } from "./modules/steps/index.js";
+import { labelsRoutes } from "./modules/labels/index.js";
+import { notificationsRoutes } from "./modules/notifications/index.js";
+import { commentsRoutes } from "./modules/comments/index.js";
+import { invitationsRoutes } from "./modules/invitations/index.js";
+import { dashboardRoutes } from "./modules/dashboard/index.js";
+import { activityLogsRoutes } from "./modules/activity-logs/index.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -52,6 +63,17 @@ export async function buildApp() {
 
   // Routes
   await app.register(authRoutes);
+  await app.register(usersRoutes);
+  await app.register(workspacesRoutes);
+  await app.register(projectsRoutes);
+  await app.register(tasksRoutes);
+  await app.register(stepsRoutes);
+  await app.register(labelsRoutes);
+  await app.register(notificationsRoutes);
+  await app.register(commentsRoutes);
+  await app.register(invitationsRoutes);
+  await app.register(dashboardRoutes);
+  await app.register(activityLogsRoutes);
 
   // Health check
   app.get("/health", async () => ({

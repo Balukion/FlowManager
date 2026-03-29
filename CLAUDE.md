@@ -212,7 +212,7 @@ const normalizedEmail = email.toLowerCase().trim();
 
 ```typescript
 generateSlug("Minha Startup"); // → 'minha-startup'
-generateSlug("App v2.0!"); // → 'app-v2-0'
+generateSlug("App v2.0!"); // → 'app-v20'
 // Se slug já existe: 'minha-startup-2', 'minha-startup-3'
 ```
 
@@ -509,13 +509,6 @@ expect(log?.metadata).toEqual({ from: "TODO", to: "DONE" })
 ```
 Fazer isso para: TASK_STATUS_CHANGED, TASK_PRIORITY_CHANGED, STEP_ASSIGNED, STEP_UNASSIGNED, MEMBER_ROLE_CHANGED, COMMENT_EDITED.
 
-### Testes unitários de service para lógica complexa
-Os services com lógica não trivial merecem testes unitários com mocks além dos testes de integração. Prioridade:
-- `tasks.service` — status automático baseado em passos, numeração sequencial
-- `steps.service` — reordenação após deleção, validação de prazo
-- `invitations.service` — geração e validação de token
-Seguir o padrão já estabelecido em `auth.service.spec.ts`.
-
 ---
 
 ## Checklist pós-implementação
@@ -527,6 +520,7 @@ Seguir o padrão já estabelecido em `auth.service.spec.ts`.
 - [ ] Nova variável de ambiente documentada no .env.example
 - [ ] Nova tabela ou coluna tem migration gerada
 - [ ] Novo problema descoberto documentado em Armadilhas abaixo
+- [ ] Swagger atualizado — schemas de request e response preenchidos para todos os endpoints novos
 
 ---
 

@@ -877,3 +877,76 @@ describe("DELETE .../steps/:stepId", () => {
     expect(response.statusCode).toBe(401);
   });
 });
+
+// ─── Activity logs como efeito colateral ─────────────────────────────────────
+
+describe("activity logs — efeitos colaterais de ações em passos", () => {
+  it("deve criar log STEP_ASSIGNED ao atribuir um membro ao passo", async () => {
+    // Arrange
+    const { access_token: tokenDono, user: dono } = await registrarUsuario({
+      email: "dono@test.com",
+    });
+    const { user: membro } = await registrarUsuario({ email: "membro@test.com" });
+
+    const workspace = await criarWorkspace(tokenDono);
+    await adicionarMembro(workspace.id, membro.id, "MEMBER");
+    const projeto = await criarProjeto(tokenDono, workspace.id);
+    const tarefa = await criarTarefa(tokenDono, workspace.id, projeto.id);
+    const passoResponse = await criarPasso(tokenDono, workspace.id, projeto.id, tarefa.id);
+    const stepId = passoResponse.json().data.step.id;
+
+    // Act
+    await app.inject({
+      method: "PATCH",
+      url: `/workspaces/${workspace.id}/projects/${projeto.id}/tasks/${tarefa.id}/steps/${stepId}/assign`,
+      headers: { authorization: `Bearer ${tokenDono}` },
+      body: { user_id: membro.id },
+    });
+
+    // Assert
+    const log = await prisma.activityLog.findFirst({
+      where: { task_id: tarefa.id, action: "STEP_ASSIGNED" },
+    });
+    expect(log).not.toBeNull();
+    expect(log?.user_id).toBe(dono.id);
+    expect(log?.metadata).toMatchObject({ assigned_to: [membro.id] });
+  });
+
+  it("deve criar log STEP_UNASSIGNED ao remover atribuição de um membro", async () => {
+    // Arrange
+    const { access_token: tokenDono, user: dono } = await registrarUsuario({
+      email: "dono@test.com",
+    });
+    const { user: membro } = await registrarUsuario({ email: "membro@test.com" });
+
+    const workspace = await criarWorkspace(tokenDono);
+    await adicionarMembro(workspace.id, membro.id, "MEMBER");
+    const projeto = await criarProjeto(tokenDono, workspace.id);
+    const tarefa = await criarTarefa(tokenDono, workspace.id, projeto.id);
+    const passoResponse = await criarPasso(tokenDono, workspace.id, projeto.id, tarefa.id);
+    const stepId = passoResponse.json().data.step.id;
+
+    // Atribui primeiro
+    await app.inject({
+      method: "PATCH",
+      url: `/workspaces/${workspace.id}/projects/${projeto.id}/tasks/${tarefa.id}/steps/${stepId}/assign`,
+      headers: { authorization: `Bearer ${tokenDono}` },
+      body: { user_id: membro.id },
+    });
+
+    // Act — remove atribuição
+    await app.inject({
+      method: "DELETE",
+      url: `/workspaces/${workspace.id}/projects/${projeto.id}/tasks/${tarefa.id}/steps/${stepId}/assign/${membro.id}`,
+      headers: { authorization: `Bearer ${tokenDono}` },
+    });
+
+    // Assert
+    const log = await prisma.activityLog.findFirst({
+      where: { task_id: tarefa.id, action: "STEP_UNASSIGNED" },
+    });
+    expect(log).not.toBeNull();
+    expect(log?.user_id).toBe(dono.id);
+    expect(log?.metadata).toMatchObject({ unassigned_from: membro.id });
+  });
+});

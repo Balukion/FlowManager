@@ -927,3 +927,60 @@ describe("DELETE .../tasks/:taskId", () => {
     expect(response.statusCode).toBe(401);
   });
 });
+
+// ─── Activity logs como efeito colateral ─────────────────────────────────────
+
+describe("activity logs — efeitos colaterais de ações em tarefas", () => {
+  it("deve criar log TASK_STATUS_CHANGED ao alterar status manualmente", async () => {
+    // Arrange
+    const { access_token, user } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+    const projeto = await criarProjeto(access_token, workspace.id);
+    const tarefaResponse = await criarTarefa(access_token, workspace.id, projeto.id);
+    const taskId = tarefaResponse.json().data.task.id;
+
+    // Act
+    await app.inject({
+      method: "PATCH",
+      url: `/workspaces/${workspace.id}/projects/${projeto.id}/tasks/${taskId}/status`,
+      headers: { authorization: `Bearer ${access_token}` },
+      body: { status: "DONE" },
+    });
+
+    // Assert
+    const log = await prisma.activityLog.findFirst({
+      where: { task_id: taskId, action: "TASK_STATUS_CHANGED" },
+    });
+    expect(log).not.toBeNull();
+    expect(log?.workspace_id).toBe(workspace.id);
+    expect(log?.user_id).toBe(user.id);
+    expect(log?.metadata).toMatchObject({ from: "TODO", to: "DONE", is_manual: true });
+  });
+
+  it("deve criar log TASK_PRIORITY_CHANGED ao alterar prioridade", async () => {
+    // Arrange
+    const { access_token, user } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+    const projeto = await criarProjeto(access_token, workspace.id);
+    const tarefaResponse = await criarTarefa(access_token, workspace.id, projeto.id, {
+      priority: "LOW",
+    });
+    const taskId = tarefaResponse.json().data.task.id;
+
+    // Act
+    await app.inject({
+      method: "PATCH",
+      url: `/workspaces/${workspace.id}/projects/${projeto.id}/tasks/${taskId}`,
+      headers: { authorization: `Bearer ${access_token}` },
+      body: { priority: "HIGH" },
+    });
+
+    // Assert
+    const log = await prisma.activityLog.findFirst({
+      where: { task_id: taskId, action: "TASK_PRIORITY_CHANGED" },
+    });
+    expect(log).not.toBeNull();
+    expect(log?.user_id).toBe(user.id);
+    expect(log?.metadata).toMatchObject({ from: "LOW", to: "HIGH" });
+  });
+});

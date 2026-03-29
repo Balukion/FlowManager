@@ -152,7 +152,7 @@ describe("rate limit — POST /auth/forgot-password", () => {
 // ─── POST /workspaces/:id/invitations — 10 por usuário por hora ──────────────
 
 describe("rate limit — POST /workspaces/:id/invitations", () => {
-  it.skip("deve retornar 429 após exceder 10 convites enviados pelo mesmo usuário — implementar após módulo workspaces", async () => {
+  it("deve retornar 429 após exceder 10 convites enviados pelo mesmo usuário", async () => {
     // Arrange
     const registerResponse = await app.inject({
       method: "POST",

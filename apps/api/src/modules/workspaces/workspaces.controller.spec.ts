@@ -1037,3 +1037,38 @@ describe("DELETE /workspaces/:id — cascade delete", () => {
     expect(membros).toHaveLength(0);
   });
 });
+
+// ─── Activity logs como efeito colateral ─────────────────────────────────────
+
+describe("activity logs — efeitos colaterais de ações no workspace", () => {
+  it("deve criar log MEMBER_ROLE_CHANGED ao alterar o role de um membro", async () => {
+    // Arrange
+    const { access_token: tokenDono, user: dono } = await registrarUsuario({
+      email: "dono@test.com",
+    });
+    const { user: membro } = await registrarUsuario({ email: "membro@test.com" });
+
+    const wsResponse = await criarWorkspace(tokenDono);
+    const workspaceId = wsResponse.json().data.workspace.id;
+
+    await prisma.workspaceMember.create({
+      data: { workspace_id: workspaceId, user_id: membro.id, role: "MEMBER", joined_at: new Date() },
+    });
+
+    // Act — promove membro para admin
+    await app.inject({
+      method: "PATCH",
+      url: `/workspaces/${workspaceId}/members/${membro.id}`,
+      headers: { authorization: `Bearer ${tokenDono}` },
+      body: { role: "ADMIN" },
+    });
+
+    // Assert
+    const log = await prisma.activityLog.findFirst({
+      where: { workspace_id: workspaceId, action: "MEMBER_ROLE_CHANGED" },
+    });
+    expect(log).not.toBeNull();
+    expect(log?.user_id).toBe(dono.id);
+    expect(log?.metadata).toMatchObject({ from: "MEMBER", to: "ADMIN" });
+  });
+});

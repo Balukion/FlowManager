@@ -116,9 +116,10 @@ async function criarConviteNoBanco(
   await prisma.invitation.create({
     data: {
       workspace_id: workspaceId,
-      invited_by_id: invitedByUserId,
+      invited_by: invitedByUserId,
       email: overrides.email ?? "convidado@test.com",
-      token: tokenHash,
+      role: "MEMBER",
+      token_hash: tokenHash,
       expires_at: expiresAt,
       status: overrides.status ?? "PENDING",
     },
@@ -160,10 +161,10 @@ describe("POST /workspaces/:id/invitations", () => {
     const invitation = await prisma.invitation.findFirst({
       where: { workspace_id: workspace.id },
     });
-    expect(invitation?.token).toBeDefined();
+    expect(invitation?.token_hash).toBeDefined();
     // Token real tem 64 chars hex (32 bytes), hash sha256 também tem 64 chars hex
     // mas são gerados de formas diferentes — o importante é que não é texto puro
-    expect(invitation?.token).toHaveLength(64);
+    expect(invitation?.token_hash).toHaveLength(64);
   });
 
   it("deve normalizar o email do convite para lowercase", async () => {
@@ -555,7 +556,7 @@ describe("POST /invitations/:token/accept", () => {
 
     // Assert
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-    const convite = await prisma.invitation.findFirst({ where: { token: tokenHash } });
+    const convite = await prisma.invitation.findFirst({ where: { token_hash: tokenHash } });
     expect(convite?.status).toBe("ACCEPTED");
   });
 
@@ -731,7 +732,7 @@ describe("POST /invitations/:token/decline", () => {
 
     // Assert
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-    const convite = await prisma.invitation.findFirst({ where: { token: tokenHash } });
+    const convite = await prisma.invitation.findFirst({ where: { token_hash: tokenHash } });
     expect(convite?.status).toBe("DECLINED");
   });
 
