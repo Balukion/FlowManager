@@ -31,6 +31,17 @@ export class NotificationsRepository {
     });
   }
 
+  async create(data: {
+    user_id: string;
+    type: string;
+    title: string;
+    body: string;
+    entity_type?: string;
+    entity_id?: string;
+  }) {
+    return prisma.notification.create({ data: data as any });
+  }
+
   async delete(id: string) {
     return prisma.notification.delete({ where: { id } });
   }

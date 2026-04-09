@@ -49,12 +49,23 @@ describe("stepService.delete", () => {
 });
 
 describe("stepService.assign", () => {
-  it("should POST to step assign endpoint", async () => {
-    vi.mocked(api.post).mockResolvedValue({ data: {} });
+  it("should PATCH to step assign endpoint", async () => {
+    vi.mocked(api.patch).mockResolvedValue({ data: {} });
     await stepService.assign(WS_ID, PROJ_ID, TASK_ID, STEP_ID, "user-2", TOKEN);
-    expect(api.post).toHaveBeenCalledWith(
-      `${BASE}/${STEP_ID}/assignments`,
+    expect(api.patch).toHaveBeenCalledWith(
+      `${BASE}/${STEP_ID}/assign`,
       { user_id: "user-2" },
+      TOKEN,
+    );
+  });
+});
+
+describe("stepService.unassign", () => {
+  it("should DELETE to step assign/:userId endpoint", async () => {
+    vi.mocked(api.delete).mockResolvedValue(undefined);
+    await stepService.unassign(WS_ID, PROJ_ID, TASK_ID, STEP_ID, "user-2", TOKEN);
+    expect(api.delete).toHaveBeenCalledWith(
+      `${BASE}/${STEP_ID}/assign/user-2`,
       TOKEN,
     );
   });

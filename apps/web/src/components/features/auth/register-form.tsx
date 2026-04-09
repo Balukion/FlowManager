@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "../../../hooks/use-auth.js";
-import { Button } from "../../ui/button.js";
-import { Input } from "../../ui/input.js";
-import { Label } from "../../ui/label.js";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@web/hooks/use-auth";
+import { Button } from "@web/components/ui/button";
+import { Input } from "@web/components/ui/input";
+import { Label } from "@web/components/ui/label";
 
 export function RegisterForm() {
   const { register } = useAuth();
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,6 +34,7 @@ export function RegisterForm() {
     setLoading(true);
     try {
       await register(name, email, password);
+      router.push("/dashboard");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : (err as { message?: string })?.message ?? "Algo deu errado";
       setError(message);

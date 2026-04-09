@@ -1,4 +1,4 @@
-import { api } from "./api.client.js";
+import { api } from "./api.client";
 
 export const workspaceService = {
   list(token: string) {
@@ -27,5 +27,17 @@ export const workspaceService = {
 
   deleteLogo(id: string, token: string) {
     return api.delete(`/workspaces/${id}/logo`, token);
+  },
+
+  listMembers(id: string, token: string) {
+    return api.get(`/workspaces/${id}/members`, token);
+  },
+
+  removeMember(id: string, userId: string, token: string) {
+    return api.delete(`/workspaces/${id}/members/${userId}`, token);
+  },
+
+  updateMemberRole(id: string, userId: string, role: string, token: string) {
+    return api.patch(`/workspaces/${id}/members/${userId}`, { role }, token);
   },
 };

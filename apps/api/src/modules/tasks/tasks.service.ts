@@ -2,12 +2,14 @@ import { ConflictError, ForbiddenError, NotFoundError } from "../../errors/index
 import type { TasksRepository } from "./tasks.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
 import type { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
+import type { NotificationsRepository } from "../notifications/notifications.repository.js";
 
 export class TasksService {
   constructor(
     private repo: TasksRepository,
     private workspacesRepo: WorkspacesRepository,
     private activityRepo?: ActivityLogsRepository,
+    private notifRepo?: NotificationsRepository,
   ) {}
 
   private async requireMember(workspaceId: string, userId: string) {
@@ -65,7 +67,7 @@ export class TasksService {
     workspaceId: string,
     projectId: string,
     userId: string,
-    filters: { status?: string; priority?: string },
+    filters: { status?: string; priority?: string; label_id?: string },
   ) {
     await this.requireMember(workspaceId, userId);
     const tasks = await this.repo.findByProject(projectId, filters);
@@ -145,6 +147,18 @@ export class TasksService {
       task_id: taskId,
       metadata: { from: task.status, to: status, is_manual: true },
     });
+
+    const watchers = await this.repo.findWatchers(taskId);
+    for (const watcher of watchers) {
+      this.notifRepo?.create({
+        user_id: watcher.user_id,
+        type: "TASK_STATUS_CHANGED",
+        title: "Status da tarefa alterado",
+        body: `"${task.title}" mudou de ${task.status} para ${status}`,
+        entity_type: "task",
+        entity_id: taskId,
+      })?.catch(() => {});
+    }
 
     return { task: updated };
   }

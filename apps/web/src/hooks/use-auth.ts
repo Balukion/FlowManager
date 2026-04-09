@@ -1,9 +1,12 @@
-import { useAuthStore } from "../stores/auth.store.js";
-import { authService } from "../services/auth.service.js";
+import { useAuthStore } from "@web/stores/auth.store";
+import { useWorkspaceStore } from "@web/stores/workspace.store";
+import { authService } from "@web/services/auth.service";
+import { getQueryClient } from "@web/lib/query-client";
 import type { AuthResponse } from "@flowmanager/types";
 
 export function useAuth() {
   const { user, accessToken, setAuth, clearAuth } = useAuthStore();
+  const { setCurrentWorkspace } = useWorkspaceStore();
 
   async function login(email: string, password: string) {
     const response = (await authService.login(email, password)) as AuthResponse;
@@ -22,6 +25,8 @@ export function useAuth() {
       await authService.logout(accessToken).catch(() => {});
     }
     clearAuth();
+    setCurrentWorkspace(null);
+    getQueryClient().clear();
   }
 
   return {

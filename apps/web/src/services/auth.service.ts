@@ -1,4 +1,4 @@
-import { api } from "./api.client.js";
+import { api } from "./api.client";
 
 export const authService = {
   login(email: string, password: string) {
@@ -23,5 +23,9 @@ export const authService = {
 
   resetPassword(token: string, password: string) {
     return api.post("/auth/reset-password", { token, password });
+  },
+
+  verifyEmail(token: string) {
+    return api.post("/auth/verify-email", { token });
   },
 };

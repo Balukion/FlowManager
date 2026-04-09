@@ -5,6 +5,11 @@ import { renderWithProviders } from "../../../../tests/utils.js";
 import { RegisterForm } from "./register-form.js";
 
 const mockRegister = vi.fn();
+const mockPush = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
+}));
 
 vi.mock("../../../hooks/use-auth.js", () => ({
   useAuth: () => ({

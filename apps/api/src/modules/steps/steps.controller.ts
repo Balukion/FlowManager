@@ -5,6 +5,7 @@ import { TasksRepository } from "../tasks/tasks.repository.js";
 import { TasksService } from "../tasks/tasks.service.js";
 import { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
 import { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
+import { NotificationsRepository } from "../notifications/notifications.repository.js";
 
 const activityRepo = new ActivityLogsRepository();
 const service = new StepsService(
@@ -13,6 +14,7 @@ const service = new StepsService(
   new WorkspacesRepository(),
   new TasksService(new TasksRepository(), new WorkspacesRepository()),
   activityRepo,
+  new NotificationsRepository(),
 );
 
 type StepParams = { id: string; projectId: string; taskId: string; stepId: string };

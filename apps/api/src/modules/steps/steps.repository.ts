@@ -28,6 +28,14 @@ export class StepsRepository {
     return prisma.step.findMany({
       where: { task_id: taskId, deleted_at: null },
       orderBy: { order: "asc" },
+      include: {
+        assignments: {
+          where: { unassigned_at: null },
+          include: {
+            user: { select: { id: true, name: true, avatar_url: true } },
+          },
+        },
+      },
     });
   }
 

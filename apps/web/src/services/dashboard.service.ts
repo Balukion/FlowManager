@@ -1,4 +1,4 @@
-import { api } from "./api.client.js";
+import { api } from "./api.client";
 
 export const dashboardService = {
   get(workspaceId: string, token: string) {

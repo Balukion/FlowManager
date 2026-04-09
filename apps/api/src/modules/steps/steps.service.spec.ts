@@ -33,6 +33,10 @@ const mockTasksService = {
   recalculateStatus: vi.fn(),
 };
 
+const mockNotifRepo = {
+  create: vi.fn(),
+};
+
 let service: StepsService;
 
 beforeEach(() => {
@@ -42,6 +46,8 @@ beforeEach(() => {
     mockTasksRepo as any,
     mockWorkspacesRepo as any,
     mockTasksService as any,
+    undefined, // activityRepo
+    mockNotifRepo as any,
   );
 });
 
@@ -116,6 +122,31 @@ describe("createStep — validação de prazo", () => {
 
     const criado = mockRepo.create.mock.calls[0][0];
     expect(criado.order).toBe(4);
+  });
+});
+
+// ─── createStep — recalculate task status ────────────────────────────────────
+
+describe("createStep — recalcula status da tarefa", () => {
+  const WORKSPACE_ID = "ws-1";
+  const PROJECT_ID = "proj-1";
+  const TASK_ID = "task-1";
+  const USER_ID = "user-1";
+
+  it("deve chamar tasksService.recalculateStatus após criar o passo", async () => {
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID });
+    const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID, status: "DONE" });
+
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "ADMIN" });
+    mockTasksRepo.findById.mockResolvedValue(task);
+    mockRepo.findLastOrder.mockResolvedValue(null);
+    mockRepo.create.mockResolvedValue(makeStep({ task_id: TASK_ID, order: 1 }));
+    mockTasksService.recalculateStatus.mockResolvedValue(undefined);
+
+    await service.createStep(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, { title: "Novo passo" });
+
+    expect(mockTasksService.recalculateStatus).toHaveBeenCalledWith(TASK_ID);
   });
 });
 
@@ -297,5 +328,32 @@ describe("assignMember", () => {
       user_id: TARGET_USER_ID,
       assigned_by: USER_ID,
     });
+  });
+
+  it("deve criar notificação STEP_ASSIGNED para o usuário atribuído", async () => {
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "MEMBER" });
+    mockRepo.findActiveAssignment.mockResolvedValue(null);
+    mockRepo.createAssignment.mockResolvedValue(undefined);
+    mockNotifRepo.create.mockResolvedValue(undefined);
+
+    await service.assignMember(WORKSPACE_ID, PROJECT_ID, TASK_ID, STEP_ID, USER_ID, TARGET_USER_ID);
+
+    expect(mockNotifRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: TARGET_USER_ID,
+        type: "STEP_ASSIGNED",
+      }),
+    );
+  });
+
+  it("não deve falhar se a notificação lançar erro (falha silenciosa)", async () => {
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "MEMBER" });
+    mockRepo.findActiveAssignment.mockResolvedValue(null);
+    mockRepo.createAssignment.mockResolvedValue(undefined);
+    mockNotifRepo.create.mockRejectedValue(new Error("DB error"));
+
+    await expect(
+      service.assignMember(WORKSPACE_ID, PROJECT_ID, TASK_ID, STEP_ID, USER_ID, TARGET_USER_ID),
+    ).resolves.not.toThrow();
   });
 });

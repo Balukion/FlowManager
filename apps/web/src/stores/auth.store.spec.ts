@@ -13,7 +13,7 @@ const mockUser: PublicUser = {
 };
 
 beforeEach(() => {
-  useAuthStore.setState({ user: null, accessToken: null });
+  useAuthStore.setState({ user: null, accessToken: null, _hasHydrated: false });
 });
 
 describe("useAuthStore", () => {
@@ -36,6 +36,15 @@ describe("useAuthStore", () => {
     const { user, accessToken } = useAuthStore.getState();
     expect(user).toBeNull();
     expect(accessToken).toBeNull();
+  });
+
+  it("_hasHydrated should start as false", () => {
+    expect(useAuthStore.getState()._hasHydrated).toBe(false);
+  });
+
+  it("setHasHydrated should update _hasHydrated to true", () => {
+    useAuthStore.getState().setHasHydrated(true);
+    expect(useAuthStore.getState()._hasHydrated).toBe(true);
   });
 
   it("isAuthenticated is true when user and token are set", () => {

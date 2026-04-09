@@ -3,8 +3,14 @@ import { TasksService } from "./tasks.service.js";
 import { TasksRepository } from "./tasks.repository.js";
 import { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
 import { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
+import { NotificationsRepository } from "../notifications/notifications.repository.js";
 
-const service = new TasksService(new TasksRepository(), new WorkspacesRepository(), new ActivityLogsRepository());
+const service = new TasksService(
+  new TasksRepository(),
+  new WorkspacesRepository(),
+  new ActivityLogsRepository(),
+  new NotificationsRepository(),
+);
 
 type TaskParams = { id: string; projectId: string; taskId: string };
 
@@ -20,7 +26,7 @@ export async function createTask(
 }
 
 export async function listTasks(
-  request: FastifyRequest<{ Params: { id: string; projectId: string }; Querystring: { status?: string; priority?: string } }>,
+  request: FastifyRequest<{ Params: { id: string; projectId: string }; Querystring: { status?: string; priority?: string; label_id?: string } }>,
   reply: FastifyReply,
 ) {
   const result = await service.listTasks(request.params.id, request.params.projectId, request.userId, request.query);

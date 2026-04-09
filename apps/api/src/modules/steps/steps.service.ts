@@ -4,6 +4,7 @@ import type { TasksRepository } from "../tasks/tasks.repository.js";
 import type { TasksService } from "../tasks/tasks.service.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
 import type { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
+import type { NotificationsRepository } from "../notifications/notifications.repository.js";
 
 export class StepsService {
   constructor(
@@ -12,6 +13,7 @@ export class StepsService {
     private workspacesRepo: WorkspacesRepository,
     private tasksService: TasksService,
     private activityRepo?: ActivityLogsRepository,
+    private notifRepo?: NotificationsRepository,
   ) {}
 
   private async requireMember(workspaceId: string, userId: string) {
@@ -61,6 +63,8 @@ export class StepsService {
       deadline: data.deadline ? new Date(data.deadline) : null,
       created_by: userId,
     });
+
+    await this.tasksService.recalculateStatus(taskId);
 
     return { step };
   }
@@ -167,6 +171,15 @@ export class StepsService {
       task_id: taskId,
       metadata: { assigned_to: [targetUserId] },
     });
+
+    this.notifRepo?.create({
+      user_id: targetUserId,
+      type: "STEP_ASSIGNED",
+      title: "Passo atribuído",
+      body: `Você foi atribuído ao passo "${step.title}"`,
+      entity_type: "step",
+      entity_id: stepId,
+    })?.catch(() => {});
   }
 
   async unassignMember(

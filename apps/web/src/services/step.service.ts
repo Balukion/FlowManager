@@ -1,4 +1,4 @@
-import { api } from "./api.client.js";
+import { api } from "./api.client";
 
 function base(workspaceId: string, projectId: string, taskId: string) {
   return `/workspaces/${workspaceId}/projects/${projectId}/tasks/${taskId}/steps`;
@@ -26,10 +26,10 @@ export const stepService = {
   },
 
   assign(workspaceId: string, projectId: string, taskId: string, stepId: string, user_id: string, token: string) {
-    return api.post(`${base(workspaceId, projectId, taskId)}/${stepId}/assignments`, { user_id }, token);
+    return api.patch(`${base(workspaceId, projectId, taskId)}/${stepId}/assign`, { user_id }, token);
   },
 
   unassign(workspaceId: string, projectId: string, taskId: string, stepId: string, userId: string, token: string) {
-    return api.delete(`${base(workspaceId, projectId, taskId)}/${stepId}/assignments/${userId}`, token);
+    return api.delete(`${base(workspaceId, projectId, taskId)}/${stepId}/assign/${userId}`, token);
   },
 };

@@ -31,12 +31,19 @@ export class TasksRepository {
   }
 
   async findById(id: string) {
-    return prisma.task.findFirst({ where: { id, deleted_at: null } });
+    return prisma.task.findFirst({
+      where: { id, deleted_at: null },
+      include: {
+        task_labels: {
+          include: { label: true },
+        },
+      },
+    });
   }
 
   async findByProject(
     projectId: string,
-    filters: { status?: string; priority?: string },
+    filters: { status?: string; priority?: string; label_id?: string },
   ) {
     return prisma.task.findMany({
       where: {
@@ -44,6 +51,14 @@ export class TasksRepository {
         deleted_at: null,
         ...(filters.status ? { status: filters.status as any } : {}),
         ...(filters.priority ? { priority: filters.priority as any } : {}),
+        ...(filters.label_id
+          ? { task_labels: { some: { label_id: filters.label_id } } }
+          : {}),
+      },
+      include: {
+        task_labels: {
+          include: { label: true },
+        },
       },
       orderBy: { order: "asc" },
     });
@@ -77,6 +92,10 @@ export class TasksRepository {
     return prisma.taskWatcher.findUnique({
       where: { task_id_user_id: { task_id: taskId, user_id: userId } },
     });
+  }
+
+  async findWatchers(taskId: string) {
+    return prisma.taskWatcher.findMany({ where: { task_id: taskId } });
   }
 
   async createWatcher(taskId: string, userId: string) {

@@ -3,6 +3,7 @@ import type { CommentsRepository } from "./comments.repository.js";
 import type { TasksRepository } from "../tasks/tasks.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
 import type { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
+import type { NotificationsRepository } from "../notifications/notifications.repository.js";
 
 const MENTION_REGEX = /@([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi;
 const DEFAULT_LIMIT = 20;
@@ -14,6 +15,7 @@ export class CommentsService {
     private tasksRepo: TasksRepository,
     private workspacesRepo: WorkspacesRepository,
     private activityRepo?: ActivityLogsRepository,
+    private notifRepo?: NotificationsRepository,
   ) {}
 
   private async requireMember(workspaceId: string, userId: string) {
@@ -58,6 +60,14 @@ export class CommentsService {
       const member = await this.workspacesRepo.findMember(workspaceId, mentionedUserId);
       if (member) {
         await this.repo.createMention(comment.id, mentionedUserId);
+        this.notifRepo?.create({
+          user_id: mentionedUserId,
+          type: "COMMENT_MENTION",
+          title: "Você foi mencionado",
+          body: `Você foi mencionado em um comentário na tarefa "${task.title}"`,
+          entity_type: "task",
+          entity_id: taskId,
+        })?.catch(() => {});
       }
     }
 

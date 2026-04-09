@@ -79,4 +79,30 @@ describe("api.delete", () => {
     const [, options] = mockFetch.mock.calls[0];
     expect(options.method).toBe("DELETE");
   });
+
+  it("should not send Content-Type header on DELETE requests", async () => {
+    mockFetch.mockResolvedValue(makeResponse({ data: {} }));
+    await api.delete("/test", "token");
+    const [, options] = mockFetch.mock.calls[0];
+    expect(options.headers["Content-Type"]).toBeUndefined();
+  });
+});
+
+describe("api.get", () => {
+  it("should not send Content-Type header on GET requests", async () => {
+    mockFetch.mockResolvedValue(makeResponse({ data: {} }));
+    await api.get("/test", "token");
+    const [, options] = mockFetch.mock.calls[0];
+    expect(options.headers["Content-Type"]).toBeUndefined();
+  });
+});
+
+describe("204 No Content", () => {
+  it("should return undefined without calling json() on 204 responses", async () => {
+    const jsonMock = vi.fn();
+    mockFetch.mockResolvedValue({ ok: true, status: 204, json: jsonMock });
+    const result = await api.delete("/test");
+    expect(result).toBeUndefined();
+    expect(jsonMock).not.toHaveBeenCalled();
+  });
 });

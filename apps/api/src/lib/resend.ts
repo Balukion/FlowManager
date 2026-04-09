@@ -35,10 +35,15 @@ export async function sendEmail(options: {
   data?: TemplateData;
 }) {
   const html = renderTemplate(options.template, options.data ?? {});
-  await resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from: EMAIL_FROM,
     to: options.to,
     subject: options.subject,
     html,
   });
+  if (error) {
+    console.error("[Resend] Falha ao enviar email:", JSON.stringify(error));
+    return;
+  }
+  console.info("[Resend] Email enviado:", data?.id, "→", options.to);
 }

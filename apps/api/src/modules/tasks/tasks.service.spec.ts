@@ -18,6 +18,7 @@ const mockRepo = {
   findStepsExceedingDeadline: vi.fn(),
   softDelete: vi.fn(),
   findWatcher: vi.fn(),
+  findWatchers: vi.fn(),
   createWatcher: vi.fn(),
   deleteWatcher: vi.fn(),
 };
@@ -27,11 +28,15 @@ const mockWorkspacesRepo = {
   findMember: vi.fn(),
 };
 
+const mockNotifRepo = {
+  create: vi.fn(),
+};
+
 let service: TasksService;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  service = new TasksService(mockRepo as any, mockWorkspacesRepo as any);
+  service = new TasksService(mockRepo as any, mockWorkspacesRepo as any, undefined, mockNotifRepo as any);
 });
 
 // ─── createTask — numeração sequencial ───────────────────────────────────────
@@ -193,6 +198,65 @@ describe("recalculateStatus", () => {
     await service.recalculateStatus(task.id);
 
     expect(mockRepo.update).not.toHaveBeenCalled();
+  });
+});
+
+// ─── updateStatus — notificações para watchers ───────────────────────────────
+
+describe("updateStatus — notificações TASK_STATUS_CHANGED", () => {
+  const WORKSPACE_ID = "ws-1";
+  const PROJECT_ID = "proj-1";
+  const TASK_ID = "task-1";
+  const USER_ID = "user-1";
+
+  beforeEach(() => {
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "ADMIN" });
+  });
+
+  it("deve criar notificação TASK_STATUS_CHANGED para cada watcher", async () => {
+    const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID, status: "TODO" });
+    mockRepo.findById.mockResolvedValue(task);
+    mockRepo.update.mockResolvedValue({ ...task, status: "DONE" });
+    mockRepo.findWatchers.mockResolvedValue([
+      { user_id: "watcher-1" },
+      { user_id: "watcher-2" },
+    ]);
+    mockNotifRepo.create.mockResolvedValue(undefined);
+
+    await service.updateStatus(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, "DONE");
+
+    expect(mockNotifRepo.create).toHaveBeenCalledTimes(2);
+    expect(mockNotifRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ user_id: "watcher-1", type: "TASK_STATUS_CHANGED" }),
+    );
+    expect(mockNotifRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ user_id: "watcher-2", type: "TASK_STATUS_CHANGED" }),
+    );
+  });
+
+  it("não deve criar notificações quando não há watchers", async () => {
+    const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID, status: "TODO" });
+    mockRepo.findById.mockResolvedValue(task);
+    mockRepo.update.mockResolvedValue({ ...task, status: "IN_PROGRESS" });
+    mockRepo.findWatchers.mockResolvedValue([]);
+
+    await service.updateStatus(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, "IN_PROGRESS");
+
+    expect(mockNotifRepo.create).not.toHaveBeenCalled();
+  });
+
+  it("não deve falhar se a notificação de watcher lançar erro (falha silenciosa)", async () => {
+    const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID, status: "TODO" });
+    mockRepo.findById.mockResolvedValue(task);
+    mockRepo.update.mockResolvedValue({ ...task, status: "DONE" });
+    mockRepo.findWatchers.mockResolvedValue([{ user_id: "watcher-1" }]);
+    mockNotifRepo.create.mockRejectedValue(new Error("DB error"));
+
+    await expect(
+      service.updateStatus(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, "DONE"),
+    ).resolves.not.toThrow();
   });
 });
 

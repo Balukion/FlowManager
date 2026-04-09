@@ -1,4 +1,4 @@
-import { api } from "./api.client.js";
+import { api } from "./api.client";
 
 export const projectService = {
   list(workspaceId: string, token: string) {

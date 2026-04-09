@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useAuthStore } from "../stores/auth.store.js";
+import { useWorkspaceStore } from "../stores/workspace.store.js";
 
 vi.mock("../services/auth.service.js", () => ({
   authService: {
@@ -8,6 +9,11 @@ vi.mock("../services/auth.service.js", () => ({
     register: vi.fn(),
     logout: vi.fn(),
   },
+}));
+
+const mockClear = vi.fn();
+vi.mock("../lib/query-client.js", () => ({
+  getQueryClient: () => ({ clear: mockClear }),
 }));
 
 import { authService } from "../services/auth.service.js";
@@ -26,6 +32,7 @@ const mockUser = {
 beforeEach(() => {
   vi.clearAllMocks();
   useAuthStore.setState({ user: null, accessToken: null });
+  useWorkspaceStore.setState({ currentWorkspace: null });
 });
 
 describe("useAuth", () => {
@@ -63,6 +70,21 @@ describe("useAuth", () => {
     expect(authService.logout).toHaveBeenCalled();
     expect(useAuthStore.getState().user).toBeNull();
     expect(useAuthStore.getState().accessToken).toBeNull();
+  });
+
+  it("logout() should clear the query cache and current workspace", async () => {
+    const mockWorkspace = { id: "ws-1", name: "Workspace A" } as any;
+    useAuthStore.setState({ user: mockUser, accessToken: "tok" });
+    useWorkspaceStore.setState({ currentWorkspace: mockWorkspace });
+    vi.mocked(authService.logout).mockResolvedValue(undefined as any);
+
+    const { result } = renderHook(() => useAuth());
+    await act(async () => {
+      await result.current.logout();
+    });
+
+    expect(mockClear).toHaveBeenCalled();
+    expect(useWorkspaceStore.getState().currentWorkspace).toBeNull();
   });
 
   it("isAuthenticated should be true when user is logged in", () => {

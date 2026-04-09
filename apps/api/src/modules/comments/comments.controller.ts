@@ -4,12 +4,14 @@ import { CommentsRepository } from "./comments.repository.js";
 import { TasksRepository } from "../tasks/tasks.repository.js";
 import { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
 import { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
+import { NotificationsRepository } from "../notifications/notifications.repository.js";
 
 const service = new CommentsService(
   new CommentsRepository(),
   new TasksRepository(),
   new WorkspacesRepository(),
   new ActivityLogsRepository(),
+  new NotificationsRepository(),
 );
 
 type CommentParams = { id: string; projectId: string; taskId: string; commentId: string };

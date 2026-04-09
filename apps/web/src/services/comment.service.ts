@@ -1,4 +1,4 @@
-import { api } from "./api.client.js";
+import { api } from "./api.client";
 
 function base(workspaceId: string, projectId: string, taskId: string) {
   return `/workspaces/${workspaceId}/projects/${projectId}/tasks/${taskId}/comments`;

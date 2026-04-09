@@ -15,13 +15,18 @@ async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const { headers: optHeaders, ...rest } = options;
   const response = await fetch(`${API_URL}${path}`, {
     headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
+      ...(rest.body !== undefined ? { "Content-Type": "application/json" } : {}),
+      ...optHeaders,
     },
-    ...options,
+    ...rest,
   });
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
 
   const body = (await response.json()) as Record<string, unknown> & {
     error?: { code?: string; message?: string };

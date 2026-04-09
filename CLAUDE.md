@@ -558,3 +558,40 @@ config: { rateLimit: { hook: "preHandler", keyGenerator: (req) => req.body?.emai
 Sintoma: `Unique constraint failed` em testes que criam registros com o mesmo email/dado, mesmo com `afterEach` limpando o banco entre testes.
 Causa: Vitest com `pool: "forks"` roda arquivos de teste em paralelo por padrão. Dois arquivos criando o mesmo registro simultaneamente no banco de testes colidem antes do cleanup rodar.
 Solução: adicionar `fileParallelism: false` no `vitest.config.ts` para garantir que os arquivos rodem em série.
+
+### `mutateAsync` re-lança o erro mesmo quando `onError` está definido
+Sintoma: mutation com `onError` configurado ainda exibe o overlay de crash do Next.js com `Runtime ApiError`. O feedback da mutation chega a aparecer, mas o app quebra.
+Causa: `mutateAsync` retorna uma Promise que rejeita quando a mutation falha — independente do `onError`. Usar `try/finally` sem `catch` no `handleSubmit` deixa o erro escapar como unhandled rejection.
+Solução: todo `handleSubmit` de formulário deve usar `try/catch/finally`. O `catch` captura o erro e exibe via `setError` ou `setSubmitError`. Nunca usar `try/finally` sozinho quando o `onSubmit` pode rejeitar.
+```typescript
+try {
+  await onSubmit(data);
+} catch (err) {
+  setSubmitError(err instanceof Error ? err.message : "Algo deu errado");
+} finally {
+  setLoading(false);
+}
+```
+
+### `response.json()` lança SyntaxError em respostas 204 No Content
+Sintoma: DELETE que retorna 204 causa erro no frontend (`Unexpected end of JSON input`). A mutation vai para `onError`, o item não some da UI, mas no banco já foi deletado. Na tentativa seguinte, o backend retorna 404.
+Causa: `api.client.ts` chamava `response.json()` incondicionalmente. Respostas 204 não têm body — `json()` lança `SyntaxError`.
+Solução: verificar `response.status === 204` antes de chamar `json()` e retornar `undefined` diretamente:
+```typescript
+if (response.status === 204) return undefined as T;
+const body = await response.json();
+```
+
+### Specs de formulário sem caso de erro dão falsa segurança
+Sintoma: todos os testes passam, mas erros de API (rate limit, conflito, 5xx) crasham o app em produção.
+Causa: specs escritos apenas para o caminho feliz (`mockResolvedValue`) e validação client-side. O caso `mockRejectedValue` nunca foi testado.
+Solução: todo spec de formulário deve incluir um teste "shows error message when onSubmit throws":
+```typescript
+it("shows error message when onSubmit throws", async () => {
+  mockOnSubmit.mockRejectedValue(new Error("Rate limit exceeded"));
+  // preenche e submete o form
+  await waitFor(() => {
+    expect(screen.getByText("Rate limit exceeded")).toBeInTheDocument();
+  });
+});
+```
