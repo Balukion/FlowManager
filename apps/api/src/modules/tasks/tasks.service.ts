@@ -1,4 +1,6 @@
-import { ConflictError, ForbiddenError, NotFoundError } from "../../errors/index.js";
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../../errors/index.js";
+import { sendEmail } from "../../lib/resend.js";
+import { env } from "../../config/env.js";
 import type { TasksRepository } from "./tasks.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
 import type { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
@@ -80,7 +82,8 @@ export class TasksService {
     const task = await this.repo.findById(taskId);
     if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");
 
-    return { task };
+    const watcher = await this.repo.findWatcher(taskId, userId);
+    return { task, is_watching: !!watcher };
   }
 
   async updateTask(
@@ -128,7 +131,7 @@ export class TasksService {
     userId: string,
     status: string,
   ) {
-    await this.requireAdminOrOwner(workspaceId, userId);
+    const { workspace } = await this.requireAdminOrOwner(workspaceId, userId);
 
     const task = await this.repo.findById(taskId);
     if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");
@@ -150,14 +153,39 @@ export class TasksService {
 
     const watchers = await this.repo.findWatchers(taskId);
     for (const watcher of watchers) {
-      this.notifRepo?.create({
-        user_id: watcher.user_id,
-        type: "TASK_STATUS_CHANGED",
-        title: "Status da tarefa alterado",
-        body: `"${task.title}" mudou de ${task.status} para ${status}`,
-        entity_type: "task",
-        entity_id: taskId,
-      })?.catch(() => {});
+      try {
+        const notif = await this.notifRepo?.create({
+          user_id: watcher.user_id,
+          type: "TASK_STATUS_CHANGED",
+          title: "Status da tarefa alterado",
+          body: `"${task.title}" mudou de ${task.status} para ${status}`,
+          entity_type: "task",
+          entity_id: taskId,
+        });
+
+        if (notif?.id && watcher.user?.email) {
+          try {
+            await sendEmail({
+              to: watcher.user.email,
+              subject: `Status da tarefa "${task.title}" foi alterado`,
+              template: "task-status-changed",
+              data: {
+                user_name: watcher.user.name,
+                task_title: task.title,
+                from_status: task.status,
+                to_status: status,
+                workspace_name: workspace.name,
+                task_url: `${env.FRONTEND_URL}/workspaces/${workspaceId}/projects/${projectId}/tasks/${taskId}`,
+              },
+            });
+            await this.notifRepo?.markAsSent(notif.id);
+          } catch {
+            // Email falhou — retry job irá tentar novamente (sent_at permanece null)
+          }
+        }
+      } catch {
+        // Criação da notificação falhou — continuar silenciosamente
+      }
     }
 
     return { task: updated };
@@ -176,6 +204,27 @@ export class TasksService {
     );
 
     return {};
+  }
+
+  async assignTask(
+    workspaceId: string,
+    projectId: string,
+    taskId: string,
+    userId: string,
+    targetUserId: string | null,
+  ) {
+    await this.requireAdminOrOwner(workspaceId, userId);
+
+    const task = await this.repo.findById(taskId);
+    if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");
+
+    if (targetUserId !== null) {
+      const targetMember = await this.workspacesRepo.findMember(workspaceId, targetUserId);
+      if (!targetMember) throw new BadRequestError("Usuário não é membro do workspace", "USER_NOT_MEMBER");
+    }
+
+    const updated = await this.repo.update(taskId, { assignee_id: targetUserId });
+    return { task: updated };
   }
 
   async watchTask(workspaceId: string, projectId: string, taskId: string, userId: string) {

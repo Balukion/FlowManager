@@ -27,8 +27,14 @@ describe("commentService.list", () => {
 describe("commentService.create", () => {
   it("should POST to comments endpoint with content and token", async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { comment: {} } });
-    await commentService.create(WS_ID, PROJ_ID, TASK_ID, "Olá mundo", TOKEN);
-    expect(api.post).toHaveBeenCalledWith(BASE, { content: "Olá mundo" }, TOKEN);
+    await commentService.create(WS_ID, PROJ_ID, TASK_ID, "Olá mundo", [], TOKEN);
+    expect(api.post).toHaveBeenCalledWith(BASE, { content: "Olá mundo", mention_ids: [] }, TOKEN);
+  });
+
+  it("should include mention_ids when mentions are provided", async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { comment: {} } });
+    await commentService.create(WS_ID, PROJ_ID, TASK_ID, "@Alice confere isso", ["u-1"], TOKEN);
+    expect(api.post).toHaveBeenCalledWith(BASE, { content: "@Alice confere isso", mention_ids: ["u-1"] }, TOKEN);
   });
 });
 
@@ -45,5 +51,19 @@ describe("commentService.delete", () => {
     vi.mocked(api.delete).mockResolvedValue(undefined);
     await commentService.delete(WS_ID, PROJ_ID, TASK_ID, COMMENT_ID, TOKEN);
     expect(api.delete).toHaveBeenCalledWith(`${BASE}/${COMMENT_ID}`, TOKEN);
+  });
+});
+
+describe("commentService.reply", () => {
+  it("should POST with content and parent_id to create a reply", async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { comment: {} } });
+    await commentService.reply(WS_ID, PROJ_ID, TASK_ID, "Boa ideia!", COMMENT_ID, [], TOKEN);
+    expect(api.post).toHaveBeenCalledWith(BASE, { content: "Boa ideia!", parent_id: COMMENT_ID, mention_ids: [] }, TOKEN);
+  });
+
+  it("should include mention_ids in reply when mentions are provided", async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { comment: {} } });
+    await commentService.reply(WS_ID, PROJ_ID, TASK_ID, "@João veja!", COMMENT_ID, ["u-1"], TOKEN);
+    expect(api.post).toHaveBeenCalledWith(BASE, { content: "@João veja!", parent_id: COMMENT_ID, mention_ids: ["u-1"] }, TOKEN);
   });
 });

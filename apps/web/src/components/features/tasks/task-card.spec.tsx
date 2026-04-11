@@ -30,11 +30,6 @@ describe("TaskCard", () => {
     expect(screen.getByText("Implementar login")).toBeInTheDocument();
   });
 
-  it("renders task number", () => {
-    render(<TaskCard task={mockTask} onClick={vi.fn()} />);
-    expect(screen.getByText("#1")).toBeInTheDocument();
-  });
-
   it("renders status in portuguese", () => {
     render(<TaskCard task={mockTask} onClick={vi.fn()} />);
     expect(screen.getByText("A fazer")).toBeInTheDocument();
@@ -68,5 +63,15 @@ describe("TaskCard", () => {
   it("renders nothing for labels when task has none", () => {
     render(<TaskCard task={{ ...mockTask, task_labels: [] } as any} onClick={vi.fn()} />);
     expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
+  });
+
+  it("renders position as #N when provided", () => {
+    render(<TaskCard task={mockTask} onClick={vi.fn()} position={3} />);
+    expect(screen.getByText("#3")).toBeInTheDocument();
+  });
+
+  it("does not render position badge when position is not provided", () => {
+    render(<TaskCard task={mockTask} onClick={vi.fn()} />);
+    expect(screen.queryByText(/#\d/)).not.toBeInTheDocument();
   });
 });

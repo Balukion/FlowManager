@@ -37,6 +37,7 @@ export class TasksRepository {
         task_labels: {
           include: { label: true },
         },
+        assignee: { select: { id: true, name: true, avatar_url: true } },
       },
     });
   }
@@ -74,6 +75,7 @@ export class TasksRepository {
     status_overridden_by?: string | null;
     status_overridden_at?: Date | null;
     order?: number;
+    assignee_id?: string | null;
   }) {
     return prisma.task.update({ where: { id }, data: data as any });
   }
@@ -95,7 +97,10 @@ export class TasksRepository {
   }
 
   async findWatchers(taskId: string) {
-    return prisma.taskWatcher.findMany({ where: { task_id: taskId } });
+    return prisma.taskWatcher.findMany({
+      where: { task_id: taskId },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
   }
 
   async createWatcher(taskId: string, userId: string) {

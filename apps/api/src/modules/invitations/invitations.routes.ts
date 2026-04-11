@@ -27,6 +27,8 @@ export async function invitationsRoutes(app: FastifyInstance) {
     auth,
     controller.cancelInvitation,
   );
+  app.post("/workspaces/:id/invitations/:invitationId/resend", auth, controller.resendInvitation);
+  app.get("/invitations/preview", controller.getInvitationPreview);
   app.post("/invitations/:token/accept", auth, controller.acceptInvitation);
   app.post("/invitations/:token/decline", auth, controller.declineInvitation);
 }

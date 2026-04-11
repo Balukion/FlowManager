@@ -63,6 +63,18 @@ export function Sidebar() {
             >
               Labels
             </NavItem>
+            <NavItem
+              href={`/workspaces/${currentWorkspace.id}/activity`}
+              active={pathname.includes("/activity")}
+            >
+              Histórico
+            </NavItem>
+            <NavItem
+              href={`/workspaces/${currentWorkspace.id}/my-work`}
+              active={pathname.includes("/my-work")}
+            >
+              Meu trabalho
+            </NavItem>
           </>
         )}
       </nav>

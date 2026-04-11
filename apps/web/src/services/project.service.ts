@@ -20,4 +20,16 @@ export const projectService = {
   delete(workspaceId: string, projectId: string, token: string) {
     return api.delete(`/workspaces/${workspaceId}/projects/${projectId}`, token);
   },
+
+  archive(workspaceId: string, projectId: string, token: string) {
+    return api.patch(`/workspaces/${workspaceId}/projects/${projectId}/archive`, {}, token);
+  },
+
+  unarchive(workspaceId: string, projectId: string, token: string) {
+    return api.patch(`/workspaces/${workspaceId}/projects/${projectId}/unarchive`, {}, token);
+  },
+
+  listArchived(workspaceId: string, token: string) {
+    return api.get(`/workspaces/${workspaceId}/projects/archived`, token);
+  },
 };

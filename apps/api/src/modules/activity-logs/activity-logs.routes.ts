@@ -6,6 +6,11 @@ export async function activityLogsRoutes(app: FastifyInstance) {
 
   app.get("/workspaces/:id/activity-logs", auth, controller.listByWorkspace);
   app.get(
+    "/workspaces/:id/projects/:projectId/activity-logs",
+    auth,
+    controller.listByProject,
+  );
+  app.get(
     "/workspaces/:id/projects/:projectId/tasks/:taskId/activity-logs",
     auth,
     controller.listByTask,

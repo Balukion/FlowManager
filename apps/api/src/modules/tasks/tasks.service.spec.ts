@@ -1,8 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TasksService } from "./tasks.service.js";
-import { ForbiddenError, NotFoundError } from "../../errors/index.js";
+import { BadRequestError, ForbiddenError, NotFoundError } from "../../errors/index.js";
 import { makeTask } from "../../../tests/helpers/factories/task.factory.js";
 import { makeWorkspace } from "../../../tests/helpers/factories/workspace.factory.js";
+
+vi.mock("../../lib/resend.js", () => ({
+  sendEmail: vi.fn().mockResolvedValue(undefined),
+}));
+
+import { sendEmail } from "../../lib/resend.js";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +36,7 @@ const mockWorkspacesRepo = {
 
 const mockNotifRepo = {
   create: vi.fn(),
+  markAsSent: vi.fn(),
 };
 
 let service: TasksService;
@@ -288,5 +295,186 @@ describe("permissões", () => {
     await expect(
       service.createTask("ws-1", "proj-1", "user-1", { title: "T", priority: "LOW" }),
     ).rejects.toThrow(ForbiddenError);
+  });
+});
+
+// ─── getTask — is_watching ────────────────────────────────────────────────────
+
+describe("getTask — is_watching", () => {
+  const WORKSPACE_ID = "ws-1";
+  const PROJECT_ID = "proj-1";
+  const TASK_ID = "task-1";
+  const USER_ID = "user-1";
+
+  beforeEach(() => {
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "MEMBER" });
+    mockRepo.findById.mockResolvedValue(makeTask({ id: TASK_ID, project_id: PROJECT_ID }));
+  });
+
+  it("deve retornar is_watching=true quando o usuário está seguindo a tarefa", async () => {
+    mockRepo.findWatcher.mockResolvedValue({ task_id: TASK_ID, user_id: USER_ID });
+
+    const result = await service.getTask(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID);
+
+    expect(result.is_watching).toBe(true);
+  });
+
+  it("deve retornar is_watching=false quando o usuário não está seguindo a tarefa", async () => {
+    mockRepo.findWatcher.mockResolvedValue(null);
+
+    const result = await service.getTask(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID);
+
+    expect(result.is_watching).toBe(false);
+  });
+});
+
+// ─── updateStatus — email para watchers ──────────────────────────────────────
+
+describe("updateStatus — email para watchers", () => {
+  const WORKSPACE_ID = "ws-1";
+  const PROJECT_ID = "proj-1";
+  const TASK_ID = "task-1";
+  const USER_ID = "user-1";
+
+  beforeEach(() => {
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID, name: "Meu WS" });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "ADMIN" });
+    vi.mocked(sendEmail).mockResolvedValue(undefined);
+  });
+
+  it("deve enviar email para cada watcher quando status muda", async () => {
+    const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID, title: "Minha Tarefa", status: "TODO" });
+    mockRepo.findById.mockResolvedValue(task);
+    mockRepo.update.mockResolvedValue({ ...task, status: "DONE" });
+    mockRepo.findWatchers.mockResolvedValue([
+      { user_id: "w-1", user: { id: "w-1", name: "Alice", email: "alice@test.com" } },
+    ]);
+    mockNotifRepo.create.mockResolvedValue({ id: "notif-1" });
+
+    await service.updateStatus(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, "DONE");
+
+    expect(vi.mocked(sendEmail)).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "alice@test.com", template: "task-status-changed" }),
+    );
+  });
+
+  it("deve marcar notificação como enviada após email bem-sucedido", async () => {
+    const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID, status: "TODO" });
+    mockRepo.findById.mockResolvedValue(task);
+    mockRepo.update.mockResolvedValue({ ...task, status: "DONE" });
+    mockRepo.findWatchers.mockResolvedValue([
+      { user_id: "w-1", user: { id: "w-1", name: "Alice", email: "alice@test.com" } },
+    ]);
+    mockNotifRepo.create.mockResolvedValue({ id: "notif-1" });
+
+    await service.updateStatus(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, "DONE");
+
+    expect(mockNotifRepo.markAsSent).toHaveBeenCalledWith("notif-1");
+  });
+
+  it("não deve enviar email quando não há watchers", async () => {
+    const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID, status: "TODO" });
+    mockRepo.findById.mockResolvedValue(task);
+    mockRepo.update.mockResolvedValue({ ...task, status: "IN_PROGRESS" });
+    mockRepo.findWatchers.mockResolvedValue([]);
+
+    await service.updateStatus(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, "IN_PROGRESS");
+
+    expect(vi.mocked(sendEmail)).not.toHaveBeenCalled();
+  });
+
+  it("não deve falhar quando o envio de email falha (falha silenciosa)", async () => {
+    const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID, status: "TODO" });
+    mockRepo.findById.mockResolvedValue(task);
+    mockRepo.update.mockResolvedValue({ ...task, status: "DONE" });
+    mockRepo.findWatchers.mockResolvedValue([
+      { user_id: "w-1", user: { id: "w-1", name: "Bob", email: "bob@test.com" } },
+    ]);
+    mockNotifRepo.create.mockResolvedValue({ id: "notif-2" });
+    vi.mocked(sendEmail).mockRejectedValueOnce(new Error("Resend error"));
+
+    await expect(
+      service.updateStatus(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, "DONE"),
+    ).resolves.not.toThrow();
+  });
+
+  it("não deve chamar markAsSent se o email falhar", async () => {
+    const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID, status: "TODO" });
+    mockRepo.findById.mockResolvedValue(task);
+    mockRepo.update.mockResolvedValue({ ...task, status: "DONE" });
+    mockRepo.findWatchers.mockResolvedValue([
+      { user_id: "w-1", user: { id: "w-1", name: "Bob", email: "bob@test.com" } },
+    ]);
+    mockNotifRepo.create.mockResolvedValue({ id: "notif-2" });
+    vi.mocked(sendEmail).mockRejectedValueOnce(new Error("Resend error"));
+
+    await service.updateStatus(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, "DONE");
+
+    expect(mockNotifRepo.markAsSent).not.toHaveBeenCalled();
+  });
+});
+
+// ─── assignTask ───────────────────────────────────────────────────────────────
+
+describe("assignTask", () => {
+  const WORKSPACE_ID = "ws-1";
+  const PROJECT_ID = "proj-1";
+  const TASK_ID = "task-1";
+  const USER_ID = "user-admin";
+  const TARGET_USER_ID = "user-member";
+
+  beforeEach(() => {
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "ADMIN" });
+    mockRepo.findById.mockResolvedValue(makeTask({ id: TASK_ID, project_id: PROJECT_ID }));
+    mockRepo.update.mockResolvedValue(makeTask({ id: TASK_ID, project_id: PROJECT_ID, assignee_id: TARGET_USER_ID }));
+  });
+
+  it("lança ForbiddenError quando não é admin nem owner", async () => {
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "MEMBER" });
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: "outro" });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+
+    await expect(
+      service.assignTask(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, TARGET_USER_ID),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("lança NotFoundError quando tarefa não existe", async () => {
+    mockRepo.findById.mockResolvedValue(null);
+
+    await expect(
+      service.assignTask(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, TARGET_USER_ID),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it("lança BadRequestError quando target não é membro do workspace", async () => {
+    mockWorkspacesRepo.findMember
+      .mockResolvedValueOnce({ role: "ADMIN" }) // admin check passa
+      .mockResolvedValueOnce(null);             // target não é membro
+
+    await expect(
+      service.assignTask(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, TARGET_USER_ID),
+    ).rejects.toMatchObject({ code: "USER_NOT_MEMBER" });
+  });
+
+  it("chama repo.update com assignee_id correto", async () => {
+    mockWorkspacesRepo.findMember
+      .mockResolvedValueOnce({ role: "ADMIN" })
+      .mockResolvedValueOnce({ role: "MEMBER" });
+
+    await service.assignTask(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, TARGET_USER_ID);
+
+    expect(mockRepo.update).toHaveBeenCalledWith(TASK_ID, { assignee_id: TARGET_USER_ID });
+  });
+
+  it("chama repo.update com assignee_id null para desatribuir", async () => {
+    await service.assignTask(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, null);
+
+    expect(mockRepo.update).toHaveBeenCalledWith(TASK_ID, { assignee_id: null });
   });
 });

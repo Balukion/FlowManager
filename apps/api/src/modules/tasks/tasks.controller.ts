@@ -65,6 +65,20 @@ export async function reorderTasks(
   return reply.status(200).send({ data: {} });
 }
 
+export async function assignTask(
+  request: FastifyRequest<{ Params: TaskParams; Body: { user_id: string | null } }>,
+  reply: FastifyReply,
+) {
+  const result = await service.assignTask(
+    request.params.id,
+    request.params.projectId,
+    request.params.taskId,
+    request.userId,
+    request.body.user_id,
+  );
+  return reply.status(200).send({ data: result });
+}
+
 export async function watchTask(
   request: FastifyRequest<{ Params: TaskParams }>,
   reply: FastifyReply,

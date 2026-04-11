@@ -429,14 +429,16 @@ describe("GET .../comments", () => {
     expect(comments[0].content).toBe("Comentário da tarefa 1");
   });
 
-  it("não deve incluir comentários deletados", async () => {
-    // Arrange
+  it("deve retornar comentários deletados com deleted_at preenchido (placeholder no frontend)", async () => {
+    // Comportamento intencional: comentários soft-deletados continuam na listagem
+    // para que o frontend possa exibir "Comentário removido" no lugar do conteúdo,
+    // preservando a estrutura do thread. O frontend usa deleted_at para mostrar o placeholder.
     const { access_token } = await registrarUsuario();
     const workspace = await criarWorkspace(access_token);
     const projeto = await criarProjeto(access_token, workspace.id);
     const tarefa = await criarTarefa(access_token, workspace.id, projeto.id);
 
-    const c1 = await criarComentario(access_token, workspace.id, projeto.id, tarefa.id, {
+    await criarComentario(access_token, workspace.id, projeto.id, tarefa.id, {
       content: "Vai ficar",
     });
     const c2 = await criarComentario(access_token, workspace.id, projeto.id, tarefa.id, {
@@ -458,10 +460,13 @@ describe("GET .../comments", () => {
       headers: { authorization: `Bearer ${access_token}` },
     });
 
-    // Assert
+    // Assert — ambos retornam, o deletado tem deleted_at preenchido
     const comments = response.json().data.comments;
-    expect(comments).toHaveLength(1);
-    expect(comments[0].content).toBe("Vai ficar");
+    expect(comments).toHaveLength(2);
+
+    const deletado = comments.find((c: { id: string }) => c.id === c2Id);
+    expect(deletado).toBeDefined();
+    expect(deletado.deleted_at).not.toBeNull();
   });
 
   it("deve retornar os dados do autor em cada comentário", async () => {

@@ -23,12 +23,40 @@ export class ActivityLogsService {
   async listByWorkspace(
     workspaceId: string,
     userId: string,
+    options: { cursor?: string; limit?: number; user_id?: string; action?: string; from?: string; to?: string },
+  ) {
+    await this.requireMember(workspaceId, userId);
+
+    const limit = Math.min(options.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
+    const rows = await this.repo.findByWorkspace(workspaceId, {
+      cursor: options.cursor,
+      limit,
+      user_id: options.user_id,
+      action: options.action,
+      from: options.from,
+      to: options.to,
+    });
+
+    const hasMore = rows.length > limit;
+    const logs = hasMore ? rows.slice(0, limit) : rows;
+    const next_cursor = hasMore ? logs[logs.length - 1].id : undefined;
+
+    return { data: { logs }, meta: { next_cursor } };
+  }
+
+  async listByProject(
+    workspaceId: string,
+    projectId: string,
+    userId: string,
     options: { cursor?: string; limit?: number },
   ) {
     await this.requireMember(workspaceId, userId);
 
     const limit = Math.min(options.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
-    const rows = await this.repo.findByWorkspace(workspaceId, { cursor: options.cursor, limit });
+    const rows = await this.repo.findByProject(workspaceId, projectId, {
+      cursor: options.cursor,
+      limit,
+    });
 
     const hasMore = rows.length > limit;
     const logs = hasMore ? rows.slice(0, limit) : rows;

@@ -12,7 +12,8 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
 
   const updateProfileMutation = useMutation({
-    mutationFn: (name: string) => userService.updateMe({ name }, accessToken!),
+    mutationFn: (data: { name: string; timezone: string }) =>
+      userService.updateMe(data, accessToken!),
     onSuccess: (data) => {
       const updated = (data as { data: { user: typeof user } })?.data?.user;
       if (updated && accessToken) setAuth(updated, accessToken);
@@ -50,7 +51,8 @@ export default function SettingsPage() {
         />
         <ProfileForm
           initialName={user.name}
-          onSubmit={async (name) => { await updateProfileMutation.mutateAsync(name); }}
+          initialTimezone={user.timezone ?? "UTC"}
+          onSubmit={async (data) => { await updateProfileMutation.mutateAsync(data); }}
         />
       </section>
 

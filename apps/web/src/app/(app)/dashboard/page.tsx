@@ -6,6 +6,8 @@ import { useAuthStore } from "@web/stores/auth.store";
 import { useWorkspaceStore } from "@web/stores/workspace.store";
 import { DashboardStats } from "@web/components/features/dashboard/dashboard-stats";
 import { RecentTasksList } from "@web/components/features/dashboard/recent-tasks";
+import { ProjectCompletionList } from "@web/components/features/dashboard/project-completion-list";
+import { MemberWorkloadList } from "@web/components/features/dashboard/member-workload-list";
 
 interface DashboardData {
   tasks: {
@@ -23,6 +25,19 @@ interface DashboardData {
     priority: string;
     deadline: string | null;
     created_at: string;
+  }[];
+  project_completion: {
+    project_id: string;
+    project_name: string;
+    total: number;
+    done: number;
+    rate: number;
+  }[];
+  member_workload: {
+    user_id: string;
+    user_name: string;
+    avatar_url: string | null;
+    open_tasks: number;
   }[];
 }
 
@@ -60,6 +75,17 @@ export default function DashboardPage() {
       </div>
 
       <DashboardStats tasks={dashboardData.tasks} members_count={dashboardData.members_count} />
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div>
+          <h2 className="mb-3 text-lg font-semibold">Taxa de conclusão por projeto</h2>
+          <ProjectCompletionList projects={dashboardData.project_completion} />
+        </div>
+        <div>
+          <h2 className="mb-3 text-lg font-semibold">Carga de trabalho por membro</h2>
+          <MemberWorkloadList members={dashboardData.member_workload} />
+        </div>
+      </div>
 
       <div>
         <h2 className="mb-3 text-lg font-semibold">Tarefas recentes</h2>

@@ -70,3 +70,23 @@ describe("stepService.unassign", () => {
     );
   });
 });
+
+describe("stepService.reorder", () => {
+  it("should PATCH steps/reorder with order array and token", async () => {
+    vi.mocked(api.patch).mockResolvedValue({ data: {} });
+    await stepService.reorder(WS_ID, PROJ_ID, TASK_ID, ["s-2", "s-1"], TOKEN);
+    expect(api.patch).toHaveBeenCalledWith(
+      `${BASE}/reorder`,
+      { order: ["s-2", "s-1"] },
+      TOKEN,
+    );
+  });
+});
+
+describe("stepService.listAssigned", () => {
+  it("should GET /workspaces/:id/steps/assigned with token", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { steps: [] } });
+    await stepService.listAssigned(WS_ID, TOKEN);
+    expect(api.get).toHaveBeenCalledWith(`/workspaces/${WS_ID}/steps/assigned`, TOKEN);
+  });
+});

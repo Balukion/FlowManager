@@ -11,11 +11,27 @@ const service = new ActivityLogsService(
 export async function listByWorkspace(
   request: FastifyRequest<{
     Params: { id: string };
-    Querystring: { cursor?: string; limit?: number };
+    Querystring: { cursor?: string; limit?: number; user_id?: string; action?: string; from?: string; to?: string };
   }>,
   reply: FastifyReply,
 ) {
   const result = await service.listByWorkspace(request.params.id, request.userId, request.query);
+  return reply.status(200).send(result);
+}
+
+export async function listByProject(
+  request: FastifyRequest<{
+    Params: { id: string; projectId: string };
+    Querystring: { cursor?: string; limit?: number };
+  }>,
+  reply: FastifyReply,
+) {
+  const result = await service.listByProject(
+    request.params.id,
+    request.params.projectId,
+    request.userId,
+    request.query,
+  );
   return reply.status(200).send(result);
 }
 

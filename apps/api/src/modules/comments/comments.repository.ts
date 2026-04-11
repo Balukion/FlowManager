@@ -16,7 +16,7 @@ export class CommentsRepository {
 
   async findByTask(taskId: string, options: { limit: number; cursor?: string }) {
     return prisma.comment.findMany({
-      where: { task_id: taskId, deleted_at: null },
+      where: { task_id: taskId },
       orderBy: { created_at: "asc" },
       take: options.limit + 1,
       include: {

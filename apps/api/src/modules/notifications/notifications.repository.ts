@@ -42,6 +42,10 @@ export class NotificationsRepository {
     return prisma.notification.create({ data: data as any });
   }
 
+  async markAsSent(id: string) {
+    return prisma.notification.update({ where: { id }, data: { sent_at: new Date() } });
+  }
+
   async delete(id: string) {
     return prisma.notification.delete({ where: { id } });
   }

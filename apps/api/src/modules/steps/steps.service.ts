@@ -66,6 +66,13 @@ export class StepsService {
 
     await this.tasksService.recalculateStatus(taskId);
 
+    await this.activityRepo?.createLog({
+      workspace_id: workspaceId,
+      user_id: userId,
+      action: "STEP_CREATED",
+      task_id: taskId,
+    });
+
     return { step };
   }
 
@@ -223,6 +230,12 @@ export class StepsService {
     );
   }
 
+  async listAssignedToMe(workspaceId: string, userId: string) {
+    await this.requireMember(workspaceId, userId);
+    const steps = await this.repo.findAssignedToUser(workspaceId, userId);
+    return { steps };
+  }
+
   async deleteStep(
     workspaceId: string,
     projectId: string,
@@ -244,5 +257,12 @@ export class StepsService {
     await Promise.all(
       remaining.map((s, index) => this.repo.update(s.id, { order: index + 1 })),
     );
+
+    await this.activityRepo?.createLog({
+      workspace_id: workspaceId,
+      user_id: userId,
+      action: "STEP_DELETED",
+      task_id: taskId,
+    });
   }
 }

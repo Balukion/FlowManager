@@ -595,3 +595,21 @@ it("shows error message when onSubmit throws", async () => {
   });
 });
 ```
+
+### Toda mutation que gera dado visível deve invalidar todos os queries afetados
+Sintoma: após executar uma ação (atribuir passo, criar comentário, alterar status, etc.), a UI não reflete a mudança — só aparece ao recarregar a página.
+Causa: TanStack Query mantém o cache antigo. O Next.js App Router não desmonta o layout ao navegar entre páginas filhas, então nunca dispara um fresh mount. Se a mutation não invalida explicitamente todos os query keys afetados, os dados ficam desatualizados.
+Solução: cada `mutation.onSuccess` deve chamar `queryClient.invalidateQueries({ queryKey: [...] })` para **todos** os queries que exibem dados alterados pela mutation. Isso inclui queries secundárias como o histórico de atividades `["activity", taskId]`.
+Regra: ao adicionar ou remover uma mutation, responda "quais queries mostram dados que essa mutation altera?" e invalide todos eles. Exemplo:
+```typescript
+onSuccess: () => {
+  queryClient.invalidateQueries({ queryKey: ["steps", taskId] });     // lista de passos
+  queryClient.invalidateQueries({ queryKey: ["task", taskId] });      // status recalculado
+  queryClient.invalidateQueries({ queryKey: ["activity", taskId] });  // histórico da tarefa
+},
+```
+Queries que tipicamente precisam ser invalidados junto:
+- `["steps", taskId]` → qualquer mutation em passos ou atribuições
+- `["task", taskId]` → mutations que afetam status ou dados da tarefa
+- `["activity", taskId]` → qualquer mutation que gera um activity log na tarefa
+- `["tasks", workspaceId, projectId]` → mutations que afetam a lista de tarefas

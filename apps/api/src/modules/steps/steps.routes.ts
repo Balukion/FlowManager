@@ -13,6 +13,7 @@ const BASE = "/workspaces/:id/projects/:projectId/tasks/:taskId/steps";
 export async function stepsRoutes(app: FastifyInstance) {
   const auth = { preHandler: [app.authenticate] };
 
+  app.get("/workspaces/:id/steps/assigned", auth, controller.listAssignedToMe);
   app.post(BASE, { ...auth, schema: createStepSchema }, controller.createStep);
   app.get(BASE, auth, controller.listSteps);
   app.patch(`${BASE}/reorder`, { ...auth, schema: reorderStepsSchema }, controller.reorderSteps);

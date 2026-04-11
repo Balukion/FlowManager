@@ -40,6 +40,26 @@ export async function acceptInvitation(
   return reply.status(200).send({ data: {} });
 }
 
+export async function resendInvitation(
+  request: FastifyRequest<{ Params: { id: string; invitationId: string } }>,
+  reply: FastifyReply,
+) {
+  const result = await service.resendInvitation(
+    request.params.id,
+    request.params.invitationId,
+    request.userId,
+  );
+  return reply.status(200).send({ data: result });
+}
+
+export async function getInvitationPreview(
+  request: FastifyRequest<{ Querystring: { token: string } }>,
+  reply: FastifyReply,
+) {
+  const result = await service.getInvitationPreview(request.query.token);
+  return reply.status(200).send({ data: result });
+}
+
 export async function declineInvitation(
   request: FastifyRequest<{ Params: { token: string } }>,
   reply: FastifyReply,

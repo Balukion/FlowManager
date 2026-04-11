@@ -18,6 +18,7 @@ export async function tasksRoutes(app: FastifyInstance) {
   app.get(`${BASE}/:taskId`, auth, controller.getTask);
   app.patch(`${BASE}/:taskId`, { ...auth, schema: updateTaskSchema }, controller.updateTask);
   app.patch(`${BASE}/:taskId/status`, { ...auth, schema: updateStatusSchema }, controller.updateStatus);
+  app.patch(`${BASE}/:taskId/assign`, auth, controller.assignTask);
   app.post(`${BASE}/:taskId/watch`, auth, controller.watchTask);
   app.delete(`${BASE}/:taskId/watch`, auth, controller.unwatchTask);
   app.delete(`${BASE}/:taskId`, auth, controller.deleteTask);

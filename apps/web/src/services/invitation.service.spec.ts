@@ -55,3 +55,23 @@ describe("invitationService.accept", () => {
     );
   });
 });
+
+describe("invitationService.resend", () => {
+  it("should POST /workspaces/:id/invitations/:invId/resend with token", async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { invitation: {} } });
+    await invitationService.resend(WS_ID, INV_ID, TOKEN);
+    expect(api.post).toHaveBeenCalledWith(
+      `/workspaces/${WS_ID}/invitations/${INV_ID}/resend`,
+      {},
+      TOKEN,
+    );
+  });
+});
+
+describe("invitationService.preview", () => {
+  it("should GET /invitations/preview?token=... without auth", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { workspace_name: "X", email: "a@b.com", invited_by_name: "Y" } });
+    await invitationService.preview("my-invite-token");
+    expect(api.get).toHaveBeenCalledWith("/invitations/preview?token=my-invite-token");
+  });
+});

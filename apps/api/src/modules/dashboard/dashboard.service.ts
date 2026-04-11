@@ -16,12 +16,15 @@ export class DashboardService {
     const isOwner = workspace.owner_id === userId;
     if (!member && !isOwner) throw new ForbiddenError("Acesso negado ao workspace");
 
-    const [counts, overdue, members_count, recent_tasks] = await Promise.all([
-      this.repo.getTaskCounts(workspaceId),
-      this.repo.getOverdueCount(workspaceId),
-      this.repo.getMembersCount(workspaceId),
-      this.repo.getRecentTasks(workspaceId),
-    ]);
+    const [counts, overdue, members_count, recent_tasks, project_completion, member_workload] =
+      await Promise.all([
+        this.repo.getTaskCounts(workspaceId),
+        this.repo.getOverdueCount(workspaceId),
+        this.repo.getMembersCount(workspaceId),
+        this.repo.getRecentTasks(workspaceId),
+        this.repo.getProjectCompletion(workspaceId),
+        this.repo.getMemberWorkload(workspaceId),
+      ]);
 
     return {
       tasks: {
@@ -33,6 +36,8 @@ export class DashboardService {
       },
       members_count,
       recent_tasks,
+      project_completion,
+      member_workload,
     };
   }
 }

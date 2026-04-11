@@ -32,4 +32,12 @@ export const stepService = {
   unassign(workspaceId: string, projectId: string, taskId: string, stepId: string, userId: string, token: string) {
     return api.delete(`${base(workspaceId, projectId, taskId)}/${stepId}/assign/${userId}`, token);
   },
+
+  reorder(workspaceId: string, projectId: string, taskId: string, order: string[], token: string) {
+    return api.patch(`${base(workspaceId, projectId, taskId)}/reorder`, { order }, token);
+  },
+
+  listAssigned(workspaceId: string, token: string) {
+    return api.get(`/workspaces/${workspaceId}/steps/assigned`, token);
+  },
 };

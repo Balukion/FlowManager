@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InvitationsService } from "./invitations.service.js";
-import { BadRequestError, ConflictError, ForbiddenError } from "../../errors/index.js";
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../../errors/index.js";
+
+vi.mock("../../lib/resend.js", () => ({
+  sendEmail: vi.fn().mockResolvedValue(undefined),
+}));
+
+import { sendEmail } from "../../lib/resend.js";
 import { makeInvitation } from "../../../tests/helpers/factories/invitation.factory.js";
 import { makeUser } from "../../../tests/helpers/factories/user.factory.js";
 import { makeWorkspace } from "../../../tests/helpers/factories/workspace.factory.js";
@@ -21,9 +27,11 @@ const mockRepo = {
   findByWorkspace: vi.fn(),
   delete: vi.fn(),
   findByTokenHash: vi.fn(),
+  findByTokenHashWithDetails: vi.fn(),
   findUserById: vi.fn(),
   createWorkspaceMember: vi.fn(),
   updateStatus: vi.fn(),
+  resendToken: vi.fn(),
 };
 
 const mockWorkspacesRepo = {
@@ -213,5 +221,189 @@ describe("declineInvitation", () => {
       "DECLINED",
       expect.objectContaining({ declined_at: expect.any(Date) }),
     );
+  });
+});
+
+// ─── resendInvitation ─────────────────────────────────────────────────────────
+
+describe("resendInvitation", () => {
+  const WORKSPACE_ID = "ws-1";
+  const INVITATION_ID = "inv-resend";
+  const USER_ID = "user-1";
+
+  beforeEach(() => {
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID, name: "Meu WS" });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "ADMIN" });
+    vi.mocked(sendEmail).mockResolvedValue(undefined);
+  });
+
+  it("deve lançar NotFoundError se o convite não existir", async () => {
+    mockRepo.findById.mockResolvedValue(null);
+
+    await expect(
+      service.resendInvitation(WORKSPACE_ID, INVITATION_ID, USER_ID),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it("deve lançar NotFoundError se o convite não pertencer ao workspace", async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeInvitation({ id: INVITATION_ID, workspace_id: "outro-ws", status: "EXPIRED" }),
+    );
+
+    await expect(
+      service.resendInvitation(WORKSPACE_ID, INVITATION_ID, USER_ID),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it("deve lançar BadRequestError INVITATION_NOT_EXPIRED se o status não for EXPIRED", async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeInvitation({ id: INVITATION_ID, workspace_id: WORKSPACE_ID, status: "PENDING" }),
+    );
+
+    await expect(
+      service.resendInvitation(WORKSPACE_ID, INVITATION_ID, USER_ID),
+    ).rejects.toMatchObject({ code: "INVITATION_NOT_EXPIRED" });
+  });
+
+  it("deve gerar novo hash sha256 e chamar resendToken com ele", async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeInvitation({ id: INVITATION_ID, workspace_id: WORKSPACE_ID, status: "EXPIRED", email: "user@test.com" }),
+    );
+    mockRepo.resendToken.mockResolvedValue(
+      makeInvitation({ id: INVITATION_ID, workspace_id: WORKSPACE_ID, status: "PENDING" }),
+    );
+
+    await service.resendInvitation(WORKSPACE_ID, INVITATION_ID, USER_ID);
+
+    const [id, tokenHash] = mockRepo.resendToken.mock.calls[0];
+    expect(id).toBe(INVITATION_ID);
+    expect(tokenHash).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("deve definir novo prazo de expiração no futuro", async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeInvitation({ id: INVITATION_ID, workspace_id: WORKSPACE_ID, status: "EXPIRED", email: "user@test.com" }),
+    );
+    mockRepo.resendToken.mockResolvedValue(
+      makeInvitation({ id: INVITATION_ID, workspace_id: WORKSPACE_ID, status: "PENDING" }),
+    );
+
+    await service.resendInvitation(WORKSPACE_ID, INVITATION_ID, USER_ID);
+
+    const [, , expiresAt] = mockRepo.resendToken.mock.calls[0];
+    expect(expiresAt).toBeInstanceOf(Date);
+    expect(expiresAt.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("deve reenviar email para o endereço do convite", async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeInvitation({ id: INVITATION_ID, workspace_id: WORKSPACE_ID, status: "EXPIRED", email: "convidado@test.com" }),
+    );
+    mockRepo.resendToken.mockResolvedValue(
+      makeInvitation({ id: INVITATION_ID, workspace_id: WORKSPACE_ID, status: "PENDING" }),
+    );
+
+    await service.resendInvitation(WORKSPACE_ID, INVITATION_ID, USER_ID);
+
+    expect(vi.mocked(sendEmail)).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "convidado@test.com", template: "invitation" }),
+    );
+  });
+
+  it("não deve expor token_hash na resposta", async () => {
+    const invitation = makeInvitation({
+      id: INVITATION_ID,
+      workspace_id: WORKSPACE_ID,
+      status: "EXPIRED",
+      email: "user@test.com",
+    });
+    mockRepo.findById.mockResolvedValue(invitation);
+    mockRepo.resendToken.mockResolvedValue({ ...invitation, status: "PENDING", token_hash: "novo_hash" });
+
+    const result = await service.resendInvitation(WORKSPACE_ID, INVITATION_ID, USER_ID);
+
+    expect(result.invitation).not.toHaveProperty("token_hash");
+  });
+});
+
+// ─── getInvitationPreview ─────────────────────────────────────────────────────
+
+describe("getInvitationPreview", () => {
+  const makeDetailedInvitation = (overrides = {}) => ({
+    id: "inv-1",
+    email: "convidado@test.com",
+    status: "PENDING",
+    expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000),
+    workspace: { name: "Workspace X" },
+    inviter: { name: "Admin Y" },
+    ...overrides,
+  });
+
+  it("retorna preview para token válido", async () => {
+    mockRepo.findByTokenHashWithDetails.mockResolvedValue(makeDetailedInvitation());
+
+    const result = await service.getInvitationPreview("valid-token");
+
+    expect(result.workspace_name).toBe("Workspace X");
+    expect(result.email).toBe("convidado@test.com");
+    expect(result.invited_by_name).toBe("Admin Y");
+  });
+
+  it("lança BadRequestError INVALID_TOKEN quando token não existe", async () => {
+    mockRepo.findByTokenHashWithDetails.mockResolvedValue(null);
+
+    await expect(service.getInvitationPreview("bad-token")).rejects.toMatchObject({
+      code: "INVALID_TOKEN",
+    });
+  });
+
+  it("lança BadRequestError TOKEN_EXPIRED quando convite expirou", async () => {
+    mockRepo.findByTokenHashWithDetails.mockResolvedValue(
+      makeDetailedInvitation({ expires_at: new Date(Date.now() - 1000) }),
+    );
+
+    await expect(service.getInvitationPreview("expired-token")).rejects.toMatchObject({
+      code: "TOKEN_EXPIRED",
+    });
+  });
+
+  it("lança BadRequestError TOKEN_ALREADY_USED quando não está PENDING", async () => {
+    mockRepo.findByTokenHashWithDetails.mockResolvedValue(
+      makeDetailedInvitation({ status: "ACCEPTED" }),
+    );
+
+    await expect(service.getInvitationPreview("used-token")).rejects.toMatchObject({
+      code: "TOKEN_ALREADY_USED",
+    });
+  });
+
+  it("nunca expõe token_hash no resultado", async () => {
+    mockRepo.findByTokenHashWithDetails.mockResolvedValue({
+      ...makeDetailedInvitation(),
+      token_hash: "secret",
+    });
+
+    const result = await service.getInvitationPreview("valid-token");
+
+    expect(result).not.toHaveProperty("token_hash");
+  });
+
+  it("marca convite como VIEWED quando status é PENDING", async () => {
+    mockRepo.findByTokenHashWithDetails.mockResolvedValue(makeDetailedInvitation({ status: "PENDING" }));
+    mockRepo.updateStatus.mockResolvedValue(undefined);
+
+    await service.getInvitationPreview("valid-token");
+
+    expect(mockRepo.updateStatus).toHaveBeenCalledWith("inv-1", "VIEWED");
+  });
+
+  it("não marca como VIEWED quando status já é VIEWED", async () => {
+    mockRepo.findByTokenHashWithDetails.mockResolvedValue(makeDetailedInvitation({ status: "VIEWED" }));
+    mockRepo.updateStatus.mockResolvedValue(undefined);
+
+    await service.getInvitationPreview("valid-token");
+
+    expect(mockRepo.updateStatus).not.toHaveBeenCalled();
   });
 });

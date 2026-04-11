@@ -94,8 +94,8 @@ export class InvitationsService {
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
     const invitation = await this.repo.findByTokenHash(tokenHash);
 
-    if (!invitation || invitation.status !== "PENDING") {
-      if (!invitation) throw new BadRequestError("Token inválido", "INVALID_TOKEN");
+    if (!invitation) throw new BadRequestError("Token inválido", "INVALID_TOKEN");
+    if (invitation.status !== "PENDING" && invitation.status !== "VIEWED") {
       throw new BadRequestError("Este convite já foi usado", "TOKEN_ALREADY_USED");
     }
 
@@ -114,12 +114,64 @@ export class InvitationsService {
     await this.repo.updateStatus(invitation.id, "ACCEPTED", { accepted_at: new Date() });
   }
 
+  async resendInvitation(workspaceId: string, invitationId: string, userId: string) {
+    const { workspace } = await this.requireAdminOrOwner(workspaceId, userId);
+
+    const invitation = await this.repo.findById(invitationId);
+    if (!invitation || invitation.workspace_id !== workspaceId) {
+      throw new NotFoundError("Convite não encontrado");
+    }
+
+    if (invitation.status !== "EXPIRED") {
+      throw new BadRequestError("Apenas convites expirados podem ser reenviados", "INVITATION_NOT_EXPIRED");
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const expiresAt = addHours(new Date(), INVITATION_EXPIRES_HOURS);
+
+    const updated = await this.repo.resendToken(invitationId, tokenHash, expiresAt);
+
+    await sendEmail({
+      to: invitation.email,
+      subject: `Você foi convidado para ${workspace.name}`,
+      template: "invitation",
+      data: { workspace_name: workspace.name, token, frontend_url: env.FRONTEND_URL },
+    });
+
+    const { token_hash: _, ...invitationData } = updated as any;
+    return { invitation: invitationData };
+  }
+
+  async getInvitationPreview(token: string) {
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const invitation = await this.repo.findByTokenHashWithDetails(tokenHash);
+
+    if (!invitation) throw new BadRequestError("Token inválido", "INVALID_TOKEN");
+    if (invitation.status !== "PENDING" && invitation.status !== "VIEWED") {
+      throw new BadRequestError("Este convite já foi usado", "TOKEN_ALREADY_USED");
+    }
+    if (invitation.expires_at < new Date()) throw new BadRequestError("Este convite expirou", "TOKEN_EXPIRED");
+
+    if (invitation.status === "PENDING") {
+      await this.repo.updateStatus(invitation.id, "VIEWED");
+    }
+
+    return {
+      workspace_name: (invitation as any).workspace.name,
+      email: invitation.email,
+      invited_by_name: (invitation as any).inviter.name,
+    };
+  }
+
   async declineInvitation(token: string, userId: string) {
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
     const invitation = await this.repo.findByTokenHash(tokenHash);
 
     if (!invitation) throw new BadRequestError("Token inválido", "INVALID_TOKEN");
-    if (invitation.status !== "PENDING") throw new BadRequestError("Este convite já foi usado", "TOKEN_ALREADY_USED");
+    if (invitation.status !== "PENDING" && invitation.status !== "VIEWED") {
+      throw new BadRequestError("Este convite já foi usado", "TOKEN_ALREADY_USED");
+    }
     if (invitation.expires_at < new Date()) throw new BadRequestError("Este convite expirou", "TOKEN_EXPIRED");
 
     const user = await this.repo.findUserById(userId);

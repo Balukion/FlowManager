@@ -401,3 +401,249 @@ describe("GET /workspaces/:id/dashboard", () => {
     expect(response.statusCode).toBe(401);
   });
 });
+
+// ─── Story 94: Taxa de conclusão por projeto ──────────────────────────────────
+
+describe("GET /workspaces/:id/dashboard — project_completion", () => {
+  it("deve retornar array project_completion na resposta", async () => {
+    const { access_token } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/dashboard`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.project_completion).toBeDefined();
+    expect(Array.isArray(response.json().data.project_completion)).toBe(true);
+  });
+
+  it("deve calcular taxa corretamente (done/total * 100)", async () => {
+    const { access_token } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+    const projeto = await criarProjeto(access_token, workspace.id);
+
+    const t1 = await criarTarefa(access_token, workspace.id, projeto.id, { title: "T1" });
+    await criarTarefa(access_token, workspace.id, projeto.id, { title: "T2" });
+    await criarTarefa(access_token, workspace.id, projeto.id, { title: "T3" });
+    await criarTarefa(access_token, workspace.id, projeto.id, { title: "T4" });
+
+    // 1 de 4 concluída = 25%
+    await prisma.task.update({
+      where: { id: t1.id },
+      data: { status: "DONE", status_is_manual: true },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/dashboard`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    const [p] = response.json().data.project_completion;
+    expect(p.project_name).toBe("Meu Projeto");
+    expect(p.total).toBe(4);
+    expect(p.done).toBe(1);
+    expect(p.rate).toBe(25);
+  });
+
+  it("deve retornar rate 0 para projeto sem tarefas", async () => {
+    const { access_token } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+    await criarProjeto(access_token, workspace.id);
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/dashboard`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    const [p] = response.json().data.project_completion;
+    expect(p.total).toBe(0);
+    expect(p.done).toBe(0);
+    expect(p.rate).toBe(0);
+  });
+
+  it("deve retornar rate 100 quando todas as tarefas estão DONE", async () => {
+    const { access_token } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+    const projeto = await criarProjeto(access_token, workspace.id);
+
+    const t = await criarTarefa(access_token, workspace.id, projeto.id);
+    await prisma.task.update({
+      where: { id: t.id },
+      data: { status: "DONE", status_is_manual: true },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/dashboard`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    const [p] = response.json().data.project_completion;
+    expect(p.rate).toBe(100);
+  });
+
+  it("não deve incluir projetos arquivados", async () => {
+    const { access_token } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+    const projeto = await criarProjeto(access_token, workspace.id);
+
+    // Arquivar projeto
+    await app.inject({
+      method: "PATCH",
+      url: `/workspaces/${workspace.id}/projects/${projeto.id}/archive`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/dashboard`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(response.json().data.project_completion).toHaveLength(0);
+  });
+
+  it("não deve incluir tarefas deletadas na contagem", async () => {
+    const { access_token } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+    const projeto = await criarProjeto(access_token, workspace.id);
+
+    const t1 = await criarTarefa(access_token, workspace.id, projeto.id, { title: "T1" });
+    const t2 = await criarTarefa(access_token, workspace.id, projeto.id, { title: "T2" });
+
+    await prisma.task.update({ where: { id: t2.id }, data: { deleted_at: new Date() } });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/dashboard`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    const [p] = response.json().data.project_completion;
+    expect(p.total).toBe(1);
+  });
+});
+
+// ─── Story 95: Carga de trabalho por membro ───────────────────────────────────
+
+describe("GET /workspaces/:id/dashboard — member_workload", () => {
+  it("deve retornar array member_workload na resposta", async () => {
+    const { access_token } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/dashboard`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.member_workload).toBeDefined();
+    expect(Array.isArray(response.json().data.member_workload)).toBe(true);
+  });
+
+  it("deve contar tarefas abertas atribuídas ao membro", async () => {
+    const { access_token, user: dono } = await registrarUsuario({ email: "dono@wl.com" });
+    const { user: membro } = await registrarUsuario({ email: "membro@wl.com" });
+
+    const workspace = await criarWorkspace(access_token);
+    await adicionarMembro(workspace.id, membro.id);
+
+    const projeto = await criarProjeto(access_token, workspace.id);
+
+    const t1 = await criarTarefa(access_token, workspace.id, projeto.id, { title: "T1" });
+    const t2 = await criarTarefa(access_token, workspace.id, projeto.id, { title: "T2" });
+    const t3 = await criarTarefa(access_token, workspace.id, projeto.id, { title: "T3" });
+
+    // Atribui t1 e t2 ao membro, t3 fica sem responsável
+    await prisma.task.update({ where: { id: t1.id }, data: { assignee_id: membro.id } });
+    await prisma.task.update({ where: { id: t2.id }, data: { assignee_id: membro.id } });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/dashboard`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    const workloads: { user_id: string; open_tasks: number }[] =
+      response.json().data.member_workload;
+    const membroWorkload = workloads.find((w) => w.user_id === membro.id);
+    expect(membroWorkload?.open_tasks).toBe(2);
+  });
+
+  it("não deve contar tarefas DONE como carga de trabalho", async () => {
+    const { access_token, user: dono } = await registrarUsuario({ email: "dono2@wl.com" });
+    const workspace = await criarWorkspace(access_token);
+    const projeto = await criarProjeto(access_token, workspace.id);
+
+    const t = await criarTarefa(access_token, workspace.id, projeto.id);
+    await prisma.task.update({
+      where: { id: t.id },
+      data: { assignee_id: dono.id, status: "DONE", status_is_manual: true },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/dashboard`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    const workloads: { user_id: string; open_tasks: number }[] =
+      response.json().data.member_workload;
+    const donoWorkload = workloads.find((w) => w.user_id === dono.id);
+    expect(donoWorkload?.open_tasks).toBe(0);
+  });
+
+  it("deve retornar user_id e user_name de cada membro", async () => {
+    const { access_token, user: dono } = await registrarUsuario({ email: "dono3@wl.com" });
+    const workspace = await criarWorkspace(access_token);
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/dashboard`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    const workloads: { user_id: string; user_name: string }[] =
+      response.json().data.member_workload;
+    expect(workloads.length).toBeGreaterThan(0);
+    expect(workloads[0].user_id).toBeDefined();
+    expect(workloads[0].user_name).toBeDefined();
+  });
+
+  it("deve ordenar do mais sobrecarregado para o menos", async () => {
+    const { access_token, user: dono } = await registrarUsuario({ email: "dono4@wl.com" });
+    const { user: membro } = await registrarUsuario({ email: "membro4@wl.com" });
+
+    const workspace = await criarWorkspace(access_token);
+    await adicionarMembro(workspace.id, membro.id);
+
+    const projeto = await criarProjeto(access_token, workspace.id);
+
+    // Dono tem 1 tarefa, membro tem 3
+    const t1 = await criarTarefa(access_token, workspace.id, projeto.id, { title: "T1" });
+    const t2 = await criarTarefa(access_token, workspace.id, projeto.id, { title: "T2" });
+    const t3 = await criarTarefa(access_token, workspace.id, projeto.id, { title: "T3" });
+    const t4 = await criarTarefa(access_token, workspace.id, projeto.id, { title: "T4" });
+
+    await prisma.task.update({ where: { id: t1.id }, data: { assignee_id: dono.id } });
+    await prisma.task.update({ where: { id: t2.id }, data: { assignee_id: membro.id } });
+    await prisma.task.update({ where: { id: t3.id }, data: { assignee_id: membro.id } });
+    await prisma.task.update({ where: { id: t4.id }, data: { assignee_id: membro.id } });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/dashboard`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    const workloads: { user_id: string; open_tasks: number }[] =
+      response.json().data.member_workload;
+    expect(workloads[0].open_tasks).toBeGreaterThanOrEqual(workloads[1].open_tasks);
+  });
+});

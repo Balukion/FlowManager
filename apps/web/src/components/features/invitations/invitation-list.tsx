@@ -24,9 +24,10 @@ interface InvitationListProps {
   invitations: Invitation[];
   canManage?: boolean;
   onCancel: (invitationId: string) => void;
+  onResend?: (invitationId: string) => void;
 }
 
-export function InvitationList({ invitations, canManage = false, onCancel }: InvitationListProps) {
+export function InvitationList({ invitations, canManage = false, onCancel, onResend }: InvitationListProps) {
   if (invitations.length === 0) {
     return <p className="text-sm text-muted-foreground">Nenhum convite pendente</p>;
   }
@@ -42,13 +43,26 @@ export function InvitationList({ invitations, canManage = false, onCancel }: Inv
             </p>
           </div>
           {canManage && (
-            <button
-              onClick={() => onCancel(inv.id)}
-              className="text-xs text-muted-foreground hover:text-destructive"
-              aria-label="Cancelar"
-            >
-              Cancelar
-            </button>
+            <div className="flex gap-2">
+              {inv.status === "EXPIRED" && onResend && (
+                <button
+                  onClick={() => onResend(inv.id)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  aria-label="Reenviar"
+                >
+                  Reenviar
+                </button>
+              )}
+              {inv.status !== "EXPIRED" && (
+                <button
+                  onClick={() => onCancel(inv.id)}
+                  className="text-xs text-muted-foreground hover:text-destructive"
+                  aria-label="Cancelar"
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
           )}
         </li>
       ))}

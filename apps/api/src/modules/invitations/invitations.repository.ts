@@ -26,7 +26,7 @@ export class InvitationsRepository {
 
   async findByWorkspace(workspaceId: string) {
     return prisma.invitation.findMany({
-      where: { workspace_id: workspaceId, status: "PENDING" },
+      where: { workspace_id: workspaceId, status: { in: ["PENDING", "EXPIRED"] } },
       include: {
         inviter: { select: { id: true, name: true, email: true, avatar_url: true } },
       },
@@ -42,12 +42,29 @@ export class InvitationsRepository {
     return prisma.invitation.findFirst({ where: { token_hash: tokenHash } });
   }
 
+  async findByTokenHashWithDetails(tokenHash: string) {
+    return prisma.invitation.findFirst({
+      where: { token_hash: tokenHash },
+      include: {
+        workspace: { select: { name: true } },
+        inviter: { select: { name: true } },
+      },
+    });
+  }
+
   async delete(id: string) {
     return prisma.invitation.delete({ where: { id } });
   }
 
   async updateStatus(id: string, status: string, extra?: { accepted_at?: Date; declined_at?: Date }) {
     return prisma.invitation.update({ where: { id }, data: { status: status as any, ...extra } });
+  }
+
+  async resendToken(id: string, tokenHash: string, expiresAt: Date) {
+    return prisma.invitation.update({
+      where: { id },
+      data: { token_hash: tokenHash, expires_at: expiresAt, status: "PENDING" },
+    });
   }
 
   async findUserById(userId: string) {

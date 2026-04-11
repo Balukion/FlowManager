@@ -31,4 +31,20 @@ export const taskService = {
   delete(workspaceId: string, projectId: string, taskId: string, token: string) {
     return api.delete(`${base(workspaceId, projectId)}/${taskId}`, token);
   },
+
+  watch(workspaceId: string, projectId: string, taskId: string, token: string) {
+    return api.post(`${base(workspaceId, projectId)}/${taskId}/watch`, {}, token);
+  },
+
+  unwatch(workspaceId: string, projectId: string, taskId: string, token: string) {
+    return api.delete(`${base(workspaceId, projectId)}/${taskId}/watch`, token);
+  },
+
+  reorder(workspaceId: string, projectId: string, order: string[], token: string) {
+    return api.patch(`${base(workspaceId, projectId)}/reorder`, { order }, token);
+  },
+
+  assign(workspaceId: string, projectId: string, taskId: string, user_id: string | null, token: string) {
+    return api.patch(`${base(workspaceId, projectId)}/${taskId}/assign`, { user_id }, token);
+  },
 };

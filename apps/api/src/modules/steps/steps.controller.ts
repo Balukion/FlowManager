@@ -129,6 +129,14 @@ export async function reorderSteps(
   return reply.status(200).send({ data: {} });
 }
 
+export async function listAssignedToMe(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply,
+) {
+  const result = await service.listAssignedToMe(request.params.id, request.userId);
+  return reply.status(200).send({ data: result });
+}
+
 export async function deleteStep(
   request: FastifyRequest<{ Params: StepParams }>,
   reply: FastifyReply,

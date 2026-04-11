@@ -54,3 +54,45 @@ describe("taskService.delete", () => {
     expect(api.delete).toHaveBeenCalledWith(`${BASE}/${TASK_ID}`, TOKEN);
   });
 });
+
+describe("taskService.watch", () => {
+  it("should POST to watch endpoint", async () => {
+    vi.mocked(api.post).mockResolvedValue(undefined);
+    await taskService.watch(WS_ID, PROJ_ID, TASK_ID, TOKEN);
+    expect(api.post).toHaveBeenCalledWith(`${BASE}/${TASK_ID}/watch`, {}, TOKEN);
+  });
+});
+
+describe("taskService.unwatch", () => {
+  it("should DELETE to watch endpoint", async () => {
+    vi.mocked(api.delete).mockResolvedValue(undefined);
+    await taskService.unwatch(WS_ID, PROJ_ID, TASK_ID, TOKEN);
+    expect(api.delete).toHaveBeenCalledWith(`${BASE}/${TASK_ID}/watch`, TOKEN);
+  });
+});
+
+describe("taskService.reorder", () => {
+  it("should PATCH tasks/reorder with order array and token", async () => {
+    vi.mocked(api.patch).mockResolvedValue({ data: {} });
+    await taskService.reorder(WS_ID, PROJ_ID, ["t-2", "t-1", "t-3"], TOKEN);
+    expect(api.patch).toHaveBeenCalledWith(
+      `${BASE}/reorder`,
+      { order: ["t-2", "t-1", "t-3"] },
+      TOKEN,
+    );
+  });
+});
+
+describe("taskService.assign", () => {
+  it("should PATCH task assign with user_id and token", async () => {
+    vi.mocked(api.patch).mockResolvedValue({ data: { task: {} } });
+    await taskService.assign(WS_ID, PROJ_ID, TASK_ID, "user-2", TOKEN);
+    expect(api.patch).toHaveBeenCalledWith(`${BASE}/${TASK_ID}/assign`, { user_id: "user-2" }, TOKEN);
+  });
+
+  it("should PATCH task assign with null to unassign", async () => {
+    vi.mocked(api.patch).mockResolvedValue({ data: { task: {} } });
+    await taskService.assign(WS_ID, PROJ_ID, TASK_ID, null, TOKEN);
+    expect(api.patch).toHaveBeenCalledWith(`${BASE}/${TASK_ID}/assign`, { user_id: null }, TOKEN);
+  });
+});

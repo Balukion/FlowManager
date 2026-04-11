@@ -7,14 +7,19 @@ import { taskService } from "@web/services/task.service";
 import { stepService } from "@web/services/step.service";
 import { commentService } from "@web/services/comment.service";
 import { labelService } from "@web/services/label.service";
+import { activityService } from "@web/services/activity.service";
 import { workspaceService } from "@web/services/workspace.service";
 import { useAuthStore } from "@web/stores/auth.store";
 import { useWorkspaceStore } from "@web/stores/workspace.store";
 import { StepList } from "@web/components/features/steps/step-list";
+import { ActivityLogList } from "@web/components/features/activity/activity-log-list";
 import { BackLink } from "@web/components/layout/back-link";
 import { CommentList } from "@web/components/features/comments/comment-list";
+import { MentionTextarea } from "@web/components/features/comments/mention-textarea";
 import { TaskLabels } from "@web/components/features/labels/task-labels";
 import { EditTaskForm } from "@web/components/features/tasks/edit-task-form";
+import { TaskStatusSelect } from "@web/components/features/tasks/task-status-select";
+import { TaskWatchButton } from "@web/components/features/tasks/task-watch-button";
 import { ConfirmDialog } from "@web/components/ui/confirm-dialog";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -36,6 +41,7 @@ interface MemberWithUser {
 interface CommentWithUser {
   id: string;
   task_id: string;
+  parent_id: string | null;
   user_id: string;
   content: string;
   edited_at: Date | null;
@@ -57,6 +63,7 @@ export default function TaskPage() {
   const { currentWorkspace } = useWorkspaceStore();
   const [newStep, setNewStep] = useState("");
   const [newComment, setNewComment] = useState("");
+  const [newCommentMentions, setNewCommentMentions] = useState<string[]>([]);
   const [assignError, setAssignError] = useState<string | null>(null);
   const [showEditTask, setShowEditTask] = useState(false);
   const [confirmDeleteTask, setConfirmDeleteTask] = useState(false);
@@ -91,7 +98,13 @@ export default function TaskPage() {
     enabled: !!accessToken,
   });
 
-  const task = (taskData as {
+  const { data: activityData } = useQuery({
+    queryKey: ["activity", taskId],
+    queryFn: () => activityService.listByTask(workspaceId, projectId, taskId, accessToken!),
+    enabled: !!accessToken,
+  });
+
+  const taskResponse = taskData as {
     data: {
       task: {
         title: string;
@@ -99,10 +112,15 @@ export default function TaskPage() {
         status: string;
         priority: string;
         deadline: string | null;
+        assignee_id: string | null;
+        assignee?: { id: string; name: string } | null;
         task_labels?: { label: TaskLabel }[];
       };
+      is_watching?: boolean;
     };
-  } | undefined)?.data?.task;
+  } | undefined;
+  const task = taskResponse?.data?.task;
+  const isWatching = taskResponse?.data?.is_watching ?? false;
 
   const steps = (stepsData as { data: { steps: (Step & { assignments?: { user_id: string; user: { id: string; name: string; avatar_url: string | null } }[] }) [] } } | undefined)?.data?.steps ?? [];
   const members: MemberWithUser[] = (membersData as { data: { members: MemberWithUser[] } } | undefined)?.data?.members ?? [];
@@ -110,6 +128,7 @@ export default function TaskPage() {
   const currentMember = members.find((m) => m.user_id === user?.id);
   const canManageAssignments =
     currentWorkspace?.owner_id === user?.id || currentMember?.role === "ADMIN";
+  const activityLogs = (activityData as { data: { logs: { id: string; action: string; created_at: Date; user: { id: string; name: string }; metadata: Record<string, unknown> }[] } } | undefined)?.data?.logs ?? [];
   const rawComments = (commentsData as { data: { comments: Record<string, unknown>[] } } | undefined)?.data?.comments ?? [];
   const comments: CommentWithUser[] = rawComments.map((c) => ({ ...c, user: c.author } as CommentWithUser));
   const workspaceLabels: TaskLabel[] = (labelsData as { data: { labels: TaskLabel[] } } | undefined)?.data?.labels ?? [];
@@ -132,6 +151,7 @@ export default function TaskPage() {
       queryClient.invalidateQueries({ queryKey: ["steps", taskId] });
       queryClient.invalidateQueries({ queryKey: ["task", taskId] });
       queryClient.invalidateQueries({ queryKey: ["tasks", workspaceId, projectId] });
+      queryClient.invalidateQueries({ queryKey: ["activity", taskId] });
       setNewStep("");
     },
   });
@@ -141,6 +161,7 @@ export default function TaskPage() {
       stepService.assign(workspaceId, projectId, taskId, stepId, userId, accessToken!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["steps", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["activity", taskId] });
       setAssignError(null);
     },
     onError: (err: { message?: string }) => {
@@ -152,7 +173,10 @@ export default function TaskPage() {
   const unassignMutation = useMutation({
     mutationFn: ({ stepId, userId }: { stepId: string; userId: string }) =>
       stepService.unassign(workspaceId, projectId, taskId, stepId, userId, accessToken!),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["steps", taskId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["steps", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["activity", taskId] });
+    },
     onError: (err: { message?: string }) => {
       setAssignError(err.message ?? "Erro ao remover atribuição");
       setTimeout(() => setAssignError(null), 4000);
@@ -165,6 +189,7 @@ export default function TaskPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["steps", taskId] });
       queryClient.invalidateQueries({ queryKey: ["task", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["activity", taskId] });
     },
   });
 
@@ -174,6 +199,7 @@ export default function TaskPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["task", taskId] });
       queryClient.invalidateQueries({ queryKey: ["tasks", workspaceId, projectId] });
+      queryClient.invalidateQueries({ queryKey: ["activity", taskId] });
       setShowEditTask(false);
     },
   });
@@ -187,18 +213,78 @@ export default function TaskPage() {
   });
 
   const createCommentMutation = useMutation({
-    mutationFn: (content: string) =>
-      commentService.create(workspaceId, projectId, taskId, content, accessToken!),
+    mutationFn: ({ content, mentions }: { content: string; mentions: string[] }) =>
+      commentService.create(workspaceId, projectId, taskId, content, mentions, accessToken!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["comments", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["activity", taskId] });
       setNewComment("");
+      setNewCommentMentions([]);
     },
   });
 
   const deleteCommentMutation = useMutation({
     mutationFn: (commentId: string) =>
       commentService.delete(workspaceId, projectId, taskId, commentId, accessToken!),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["comments", taskId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["comments", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["activity", taskId] });
+    },
+  });
+
+  const editCommentMutation = useMutation({
+    mutationFn: ({ commentId, content }: { commentId: string; content: string }) =>
+      commentService.update(workspaceId, projectId, taskId, commentId, content, accessToken!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["comments", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["activity", taskId] });
+    },
+  });
+
+  const replyMutation = useMutation({
+    mutationFn: ({ parentId, content, mentions }: { parentId: string; content: string; mentions: string[] }) =>
+      commentService.reply(workspaceId, projectId, taskId, content, parentId, mentions, accessToken!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["comments", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["activity", taskId] });
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: (status: string) =>
+      taskService.updateStatus(workspaceId, projectId, taskId, status, accessToken!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["task", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["tasks", workspaceId, projectId] });
+      queryClient.invalidateQueries({ queryKey: ["activity", taskId] });
+    },
+  });
+
+  const reorderStepsMutation = useMutation({
+    mutationFn: (order: string[]) =>
+      stepService.reorder(workspaceId, projectId, taskId, order, accessToken!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["steps", taskId] });
+    },
+  });
+
+  const assignTaskMutation = useMutation({
+    mutationFn: (userId: string | null) =>
+      taskService.assign(workspaceId, projectId, taskId, userId, accessToken!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["task", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["tasks", workspaceId, projectId] });
+    },
+  });
+
+  const watchMutation = useMutation({
+    mutationFn: () => taskService.watch(workspaceId, projectId, taskId, accessToken!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["task", taskId] }),
+  });
+
+  const unwatchMutation = useMutation({
+    mutationFn: () => taskService.unwatch(workspaceId, projectId, taskId, accessToken!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["task", taskId] }),
   });
 
   function handleLabelsUpdate() {
@@ -227,11 +313,23 @@ export default function TaskPage() {
         </div>
       ) : (
         <div className="flex items-start justify-between gap-4">
-          <div>
+          <div className="space-y-2">
             <h1 className="text-2xl font-bold">{task.title}</h1>
             {task.description && (
-              <p className="mt-2 text-muted-foreground">{task.description}</p>
+              <p className="text-muted-foreground">{task.description}</p>
             )}
+            <div className="flex items-center gap-3">
+              <TaskStatusSelect
+                status={task.status}
+                onChange={(status) => updateStatusMutation.mutate(status)}
+                disabled={!canManageAssignments}
+              />
+              <TaskWatchButton
+                isWatching={isWatching}
+                onWatch={() => watchMutation.mutate()}
+                onUnwatch={() => unwatchMutation.mutate()}
+              />
+            </div>
           </div>
           {canManageAssignments && (
             <div className="flex shrink-0 gap-2">
@@ -253,6 +351,29 @@ export default function TaskPage() {
           onCancel={() => setConfirmDeleteTask(false)}
         />
       )}
+
+      <section className="space-y-2">
+        <h2 className="font-semibold">Responsável</h2>
+        {canManageAssignments ? (
+          <select
+            aria-label="Atribuir responsável"
+            className="rounded-md border bg-background px-3 py-1.5 text-sm"
+            value={task.assignee_id ?? ""}
+            onChange={(e) => assignTaskMutation.mutate(e.target.value || null)}
+          >
+            <option value="">Sem responsável</option>
+            {members.map((m) => (
+              <option key={m.user_id} value={m.user_id}>
+                {m.user.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {task.assignee?.name ?? "Sem responsável"}
+          </p>
+        )}
+      </section>
 
       <section className="space-y-2">
         <h2 className="font-semibold">Labels</h2>
@@ -281,6 +402,7 @@ export default function TaskPage() {
           onAssign={(stepId, userId) => assignMutation.mutate({ stepId, userId })}
           onUnassign={(stepId, userId) => unassignMutation.mutate({ stepId, userId })}
           onDelete={(stepId) => deleteStepMutation.mutate(stepId)}
+          onReorder={(order) => reorderStepsMutation.mutate(order)}
         />
         {canManageAssignments && (
           <div className="flex gap-2">
@@ -309,25 +431,35 @@ export default function TaskPage() {
         <CommentList
           comments={comments}
           currentUserId={user?.id ?? ""}
+          members={members}
           onDelete={(id) => deleteCommentMutation.mutate(id)}
+          onEdit={(id, content) => editCommentMutation.mutate({ commentId: id, content })}
+          onReply={(parentId, content, mentions) => replyMutation.mutate({ parentId, content, mentions })}
         />
         <div className="space-y-2">
-          <Label htmlFor="new-comment">Novo comentário</Label>
-          <div className="flex gap-2">
-            <Input
-              id="new-comment"
-              placeholder="Escreva um comentário..."
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-            />
-            <Button
-              onClick={() => newComment.trim() && createCommentMutation.mutate(newComment.trim())}
-              disabled={!newComment.trim()}
-            >
-              Enviar
-            </Button>
-          </div>
+          <Label>Novo comentário</Label>
+          <MentionTextarea
+            value={newComment}
+            onChange={setNewComment}
+            onMentionsChange={setNewCommentMentions}
+            members={members}
+            placeholder="Escreva um comentário... Use @ para mencionar alguém"
+            rows={3}
+          />
+          <Button
+            onClick={() =>
+              newComment.trim() &&
+              createCommentMutation.mutate({ content: newComment.trim(), mentions: newCommentMentions })
+            }
+            disabled={!newComment.trim()}
+          >
+            Enviar
+          </Button>
         </div>
+      </section>
+      <section className="space-y-3">
+        <h2 className="font-semibold">Histórico</h2>
+        <ActivityLogList logs={activityLogs} />
       </section>
     </div>
   );

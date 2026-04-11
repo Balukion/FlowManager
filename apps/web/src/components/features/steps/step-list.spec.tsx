@@ -164,3 +164,91 @@ describe("StepList", () => {
     expect(screen.queryByText(/tem certeza/i)).not.toBeInTheDocument();
   });
 });
+
+describe("StepList — numeração por posição", () => {
+  it("renders #1 for first step and #2 for second step", () => {
+    render(
+      <StepList
+        steps={steps}
+        members={members}
+        canManageAssignments
+        onStatusChange={vi.fn()}
+        onAssign={vi.fn()}
+        onUnassign={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("#1")).toBeInTheDocument();
+    expect(screen.getByText("#2")).toBeInTheDocument();
+  });
+
+  it("numbers reflect array order regardless of step.order field", () => {
+    const reversed = [steps[1], steps[0]];
+    render(
+      <StepList
+        steps={reversed}
+        members={members}
+        canManageAssignments
+        onStatusChange={vi.fn()}
+        onAssign={vi.fn()}
+        onUnassign={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    // #1 deve estar junto ao título do segundo step (Desenvolver tela)
+    const item1 = screen.getByText("#1").closest("li");
+    expect(item1).toHaveTextContent("Desenvolver tela");
+    const item2 = screen.getByText("#2").closest("li");
+    expect(item2).toHaveTextContent("Criar wireframe");
+  });
+});
+
+describe("StepList — reordenação", () => {
+  it("shows drag handle for each step when canManageAssignments and onReorder are provided", () => {
+    render(
+      <StepList
+        steps={steps}
+        members={members}
+        canManageAssignments
+        onStatusChange={vi.fn()}
+        onAssign={vi.fn()}
+        onUnassign={vi.fn()}
+        onDelete={vi.fn()}
+        onReorder={vi.fn()}
+      />,
+    );
+    const handles = screen.getAllByRole("button", { name: /arrastar passo/i });
+    expect(handles).toHaveLength(2);
+  });
+
+  it("does not show drag handles when onReorder is not provided", () => {
+    render(
+      <StepList
+        steps={steps}
+        members={members}
+        canManageAssignments
+        onStatusChange={vi.fn()}
+        onAssign={vi.fn()}
+        onUnassign={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /arrastar passo/i })).not.toBeInTheDocument();
+  });
+
+  it("does not show drag handles when canManageAssignments is false", () => {
+    render(
+      <StepList
+        steps={steps}
+        members={members}
+        canManageAssignments={false}
+        onStatusChange={vi.fn()}
+        onAssign={vi.fn()}
+        onUnassign={vi.fn()}
+        onDelete={vi.fn()}
+        onReorder={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /arrastar passo/i })).not.toBeInTheDocument();
+  });
+});

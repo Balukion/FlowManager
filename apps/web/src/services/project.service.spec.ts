@@ -52,3 +52,31 @@ describe("projectService.delete", () => {
     expect(api.delete).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects/${PROJ_ID}`, TOKEN);
   });
 });
+
+describe("projectService.archive", () => {
+  it("should PATCH /workspaces/:wsId/projects/:id/archive with token", async () => {
+    vi.mocked(api.patch).mockResolvedValue({ data: { project: {} } });
+    await projectService.archive(WS_ID, PROJ_ID, TOKEN);
+    expect(api.patch).toHaveBeenCalledWith(
+      `/workspaces/${WS_ID}/projects/${PROJ_ID}/archive`, {}, TOKEN,
+    );
+  });
+});
+
+describe("projectService.unarchive", () => {
+  it("should PATCH /workspaces/:wsId/projects/:id/unarchive with token", async () => {
+    vi.mocked(api.patch).mockResolvedValue({ data: { project: {} } });
+    await projectService.unarchive(WS_ID, PROJ_ID, TOKEN);
+    expect(api.patch).toHaveBeenCalledWith(
+      `/workspaces/${WS_ID}/projects/${PROJ_ID}/unarchive`, {}, TOKEN,
+    );
+  });
+});
+
+describe("projectService.listArchived", () => {
+  it("should GET /workspaces/:wsId/projects/archived with token", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { projects: [] } });
+    await projectService.listArchived(WS_ID, TOKEN);
+    expect(api.get).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects/archived`, TOKEN);
+  });
+});

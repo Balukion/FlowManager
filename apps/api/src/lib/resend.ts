@@ -5,6 +5,8 @@ import { resetPasswordTemplate } from "../email/templates/reset-password.js";
 import { invitationTemplate } from "../email/templates/invitation.js";
 import { stepAssignedTemplate } from "../email/templates/step-assigned.js";
 import { deadlineReminderTemplate } from "../email/templates/deadline-reminder.js";
+import { taskStatusChangedTemplate } from "../email/templates/task-status-changed.js";
+import { commentMentionTemplate } from "../email/templates/comment-mention.js";
 
 const resend = new Resend(env.RESEND_API_KEY);
 const EMAIL_FROM = `${env.RESEND_FROM_NAME} <${env.RESEND_FROM_EMAIL}>`;
@@ -23,6 +25,10 @@ function renderTemplate(template: string, data: TemplateData): string {
       return stepAssignedTemplate(data as any);
     case "deadline-reminder":
       return deadlineReminderTemplate(data as any);
+    case "task-status-changed":
+      return taskStatusChangedTemplate(data as any);
+    case "comment-mention":
+      return commentMentionTemplate(data as any);
     default:
       return `<p>${data["body"] ?? data["subject"] ?? ""}</p>`;
   }

@@ -5,7 +5,7 @@ export const userService = {
     return api.get("/users/me", token);
   },
 
-  updateMe(data: { name?: string; avatar_url?: string }, token: string) {
+  updateMe(data: { name?: string; avatar_url?: string; timezone?: string }, token: string) {
     return api.patch("/users/me", data, token);
   },
 

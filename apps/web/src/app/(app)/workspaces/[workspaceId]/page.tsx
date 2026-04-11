@@ -26,12 +26,19 @@ export default function WorkspacePage() {
   const { accessToken, user } = useAuthStore();
   const { currentWorkspace } = useWorkspaceStore();
   const [showForm, setShowForm] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [confirmDeleteWorkspace, setConfirmDeleteWorkspace] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["projects", workspaceId],
     queryFn: () => projectService.list(workspaceId, accessToken!),
     enabled: !!accessToken,
+  });
+
+  const { data: archivedData } = useQuery({
+    queryKey: ["projects", workspaceId, "archived"],
+    queryFn: () => projectService.listArchived(workspaceId, accessToken!),
+    enabled: !!accessToken && showArchived,
   });
 
   const { data: membersData } = useQuery({
@@ -48,6 +55,9 @@ export default function WorkspacePage() {
 
   const projects: Project[] =
     (data as { data: { projects: Project[] } } | undefined)?.data?.projects ?? [];
+
+  const archivedProjects: Project[] =
+    (archivedData as { data: { projects: Project[] } } | undefined)?.data?.projects ?? [];
 
   const isOwner = currentWorkspace?.owner_id === user?.id;
 
@@ -120,6 +130,26 @@ export default function WorkspacePage() {
         {projects.map((proj) => (
           <ProjectCard key={proj.id} project={proj} onClick={handleClick} />
         ))}
+      </div>
+
+      <div className="border-t pt-4">
+        <button
+          onClick={() => setShowArchived((v) => !v)}
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          {showArchived ? "▲ Ocultar arquivados" : "▼ Ver projetos arquivados"}
+        </button>
+        {showArchived && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {archivedProjects.length === 0 ? (
+              <p className="text-sm text-muted-foreground col-span-full">Nenhum projeto arquivado.</p>
+            ) : (
+              archivedProjects.map((proj) => (
+                <ProjectCard key={proj.id} project={proj} onClick={handleClick} />
+              ))
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -321,6 +321,214 @@ describe("GET /workspaces/:id/activity-logs", () => {
   });
 });
 
+// ─── GET /workspaces/:id/activity-logs — filtros ─────────────────────────────
+
+describe("GET /workspaces/:id/activity-logs — filtros", () => {
+  it("deve filtrar logs por user_id", async () => {
+    // Arrange — dois usuários, cada um gera um log
+    const { access_token: tokenDono, user: dono } = await registrarUsuario({ email: "dono@test.com" });
+    const { user: membro } = await registrarUsuario({ email: "membro@test.com" });
+    const workspace = await criarWorkspace(tokenDono);
+    await adicionarMembro(workspace.id, membro.id, "MEMBER");
+
+    await criarLog(workspace.id, dono.id, { action: "TASK_CREATED" });
+    await criarLog(workspace.id, membro.id, { action: "TASK_CREATED" });
+
+    // Act — filtra só pelo membro
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/activity-logs?user_id=${membro.id}`,
+      headers: { authorization: `Bearer ${tokenDono}` },
+    });
+
+    // Assert
+    expect(response.statusCode).toBe(200);
+    const logs = response.json().data.logs;
+    expect(logs).toHaveLength(1);
+    expect(logs[0].user.id).toBe(membro.id);
+  });
+
+  it("deve filtrar logs por action", async () => {
+    // Arrange
+    const { access_token, user } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+
+    await criarLog(workspace.id, user.id, { action: "TASK_CREATED" });
+    await criarLog(workspace.id, user.id, { action: "STEP_ASSIGNED" });
+    await criarLog(workspace.id, user.id, { action: "TASK_CREATED" });
+
+    // Act — filtra só STEP_ASSIGNED
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/activity-logs?action=STEP_ASSIGNED`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    // Assert
+    expect(response.statusCode).toBe(200);
+    const logs = response.json().data.logs;
+    expect(logs).toHaveLength(1);
+    expect(logs[0].action).toBe("STEP_ASSIGNED");
+  });
+
+  it("deve filtrar logs por período (from e to)", async () => {
+    // Arrange
+    const { access_token, user } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+
+    // Log antigo — fora do período
+    await prisma.activityLog.create({
+      data: {
+        workspace_id: workspace.id,
+        user_id: user.id,
+        action: "TASK_CREATED" as any,
+        metadata: {},
+        created_at: new Date("2026-01-01"),
+      },
+    });
+
+    // Log recente — dentro do período
+    await prisma.activityLog.create({
+      data: {
+        workspace_id: workspace.id,
+        user_id: user.id,
+        action: "STEP_ASSIGNED" as any,
+        metadata: {},
+        created_at: new Date("2026-03-15"),
+      },
+    });
+
+    // Act — filtra de 2026-03-01 a 2026-03-31
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/activity-logs?from=2026-03-01&to=2026-03-31`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    // Assert
+    expect(response.statusCode).toBe(200);
+    const logs = response.json().data.logs;
+    expect(logs).toHaveLength(1);
+    expect(logs[0].action).toBe("STEP_ASSIGNED");
+  });
+});
+
+// ─── GET .../projects/:projectId/activity-logs ───────────────────────────────
+
+describe("GET /workspaces/:id/projects/:projectId/activity-logs", () => {
+  it("deve retornar logs das tarefas do projeto", async () => {
+    // Arrange
+    const { access_token, user } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+    const projeto = await criarProjeto(access_token, workspace.id);
+    const tarefa = await criarTarefa(access_token, workspace.id, projeto.id);
+
+    await criarLog(workspace.id, user.id, {
+      action: "TASK_STATUS_CHANGED",
+      task_id: tarefa.id,
+    });
+    await criarLog(workspace.id, user.id, {
+      action: "COMMENT_CREATED",
+      task_id: tarefa.id,
+    });
+    // Log de workspace sem task_id — não deve aparecer
+    await criarLog(workspace.id, user.id, { action: "MEMBER_ADDED" });
+
+    // Act
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/projects/${projeto.id}/activity-logs`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    // Assert
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.logs).toHaveLength(2);
+  });
+
+  it("não deve retornar logs de tarefas de outro projeto", async () => {
+    // Arrange
+    const { access_token, user } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+    const projetoA = await criarProjeto(access_token, workspace.id);
+    const projetoB = await criarProjeto(access_token, workspace.id);
+    const tarefaA = await criarTarefa(access_token, workspace.id, projetoA.id);
+    const tarefaB = await criarTarefa(access_token, workspace.id, projetoB.id);
+
+    await criarLog(workspace.id, user.id, { action: "TASK_CREATED", task_id: tarefaA.id });
+    await criarLog(workspace.id, user.id, { action: "TASK_CREATED", task_id: tarefaB.id });
+
+    // Act — busca logs do projetoA
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/projects/${projetoA.id}/activity-logs`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    // Assert — só o log da tarefaA
+    expect(response.json().data.logs).toHaveLength(1);
+  });
+
+  it("deve suportar paginação cursor-based", async () => {
+    // Arrange
+    const { access_token, user } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+    const projeto = await criarProjeto(access_token, workspace.id);
+    const tarefa = await criarTarefa(access_token, workspace.id, projeto.id);
+
+    for (let i = 0; i < 8; i++) {
+      await criarLog(workspace.id, user.id, { action: "TASK_CREATED", task_id: tarefa.id });
+    }
+
+    // Act
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/projects/${projeto.id}/activity-logs?limit=3`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    // Assert
+    expect(response.json().data.logs).toHaveLength(3);
+    expect(response.json().meta.next_cursor).toBeDefined();
+  });
+
+  it("deve retornar 403 se o usuário não é membro do workspace", async () => {
+    // Arrange
+    const { access_token: tokenDono } = await registrarUsuario({ email: "dono@test.com" });
+    const { access_token: tokenForasteiro } = await registrarUsuario({
+      email: "forasteiro@test.com",
+    });
+    const workspace = await criarWorkspace(tokenDono);
+    const projeto = await criarProjeto(tokenDono, workspace.id);
+
+    // Act
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/projects/${projeto.id}/activity-logs`,
+      headers: { authorization: `Bearer ${tokenForasteiro}` },
+    });
+
+    // Assert
+    expect(response.statusCode).toBe(403);
+  });
+
+  it("deve retornar 401 se não autenticado", async () => {
+    // Arrange
+    const { access_token } = await registrarUsuario();
+    const workspace = await criarWorkspace(access_token);
+    const projeto = await criarProjeto(access_token, workspace.id);
+
+    // Act
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspace.id}/projects/${projeto.id}/activity-logs`,
+    });
+
+    // Assert
+    expect(response.statusCode).toBe(401);
+  });
+});
+
 // ─── GET .../tasks/:taskId/activity-logs ─────────────────────────────────────
 
 describe("GET .../tasks/:taskId/activity-logs", () => {

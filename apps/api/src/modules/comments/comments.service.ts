@@ -1,4 +1,6 @@
 import { BadRequestError, ForbiddenError, NotFoundError } from "../../errors/index.js";
+import { sendEmail } from "../../lib/resend.js";
+import { env } from "../../config/env.js";
 import type { CommentsRepository } from "./comments.repository.js";
 import type { TasksRepository } from "../tasks/tasks.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
@@ -55,19 +57,48 @@ export class CommentsService {
       parent_id: data.parent_id ?? null,
     });
 
+    await this.activityRepo?.createLog({
+      workspace_id: workspaceId,
+      user_id: userId,
+      action: "COMMENT_CREATED",
+      task_id: taskId,
+    });
+
     const mentionedUserIds = [...data.content.matchAll(MENTION_REGEX)].map((m) => m[1]);
     for (const mentionedUserId of mentionedUserIds) {
-      const member = await this.workspacesRepo.findMember(workspaceId, mentionedUserId);
+      const member = await this.workspacesRepo.findMemberWithUser(workspaceId, mentionedUserId);
       if (member) {
         await this.repo.createMention(comment.id, mentionedUserId);
-        this.notifRepo?.create({
-          user_id: mentionedUserId,
-          type: "COMMENT_MENTION",
-          title: "Você foi mencionado",
-          body: `Você foi mencionado em um comentário na tarefa "${task.title}"`,
-          entity_type: "task",
-          entity_id: taskId,
-        })?.catch(() => {});
+        try {
+          const notif = await this.notifRepo?.create({
+            user_id: mentionedUserId,
+            type: "COMMENT_MENTION",
+            title: "Você foi mencionado",
+            body: `Você foi mencionado em um comentário na tarefa "${task.title}"`,
+            entity_type: "task",
+            entity_id: taskId,
+          });
+          if (notif?.id && (member as any).user?.email) {
+            try {
+              await sendEmail({
+                to: (member as any).user.email,
+                subject: `Você foi mencionado na tarefa "${task.title}"`,
+                template: "comment-mention",
+                data: {
+                  user_name: (member as any).user.name,
+                  task_title: task.title,
+                  commenter_name: userId,
+                  task_url: `${env.FRONTEND_URL}/workspaces/${workspaceId}/projects/${task.project_id}/tasks/${taskId}`,
+                },
+              });
+              await this.notifRepo?.markAsSent(notif.id);
+            } catch {
+              // Email falhou — retry job irá tentar novamente
+            }
+          }
+        } catch {
+          // Criação de notificação falhou — continuar silenciosamente
+        }
       }
     }
 
@@ -147,5 +178,12 @@ export class CommentsService {
     }
 
     await this.repo.softDelete(commentId, userId);
+
+    await this.activityRepo?.createLog({
+      workspace_id: workspaceId,
+      user_id: userId,
+      action: "COMMENT_DELETED",
+      task_id: taskId,
+    });
   }
 }

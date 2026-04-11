@@ -4,11 +4,13 @@ import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "@web/services/task.service";
+import { projectService } from "@web/services/project.service";
 import { labelService } from "@web/services/label.service";
 import { workspaceService } from "@web/services/workspace.service";
 import { useAuthStore } from "@web/stores/auth.store";
 import { useWorkspaceStore } from "@web/stores/workspace.store";
-import { TaskCard } from "@web/components/features/tasks/task-card";
+import Link from "next/link";
+import { SortableTaskList } from "@web/components/features/tasks/sortable-task-list";
 import { LabelBadge } from "@web/components/features/labels/label-badge";
 import { CreateTaskForm } from "@web/components/features/tasks/create-task-form";
 import { ConfirmDialog } from "@web/components/ui/confirm-dialog";
@@ -40,6 +42,15 @@ export default function ProjectPage() {
   const [showForm, setShowForm] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
   const [confirmDeleteProject, setConfirmDeleteProject] = useState(false);
+
+  const { data: projectData } = useQuery({
+    queryKey: ["project", projectId],
+    queryFn: () => projectService.get(workspaceId, projectId, accessToken!),
+    enabled: !!accessToken,
+  });
+
+  const project = (projectData as { data: { project: { name: string; status: string } } } | undefined)?.data?.project;
+  const isArchived = project?.status === "ARCHIVED";
 
   const { data: labelsData } = useQuery({
     queryKey: ["labels", workspaceId],
@@ -84,15 +95,37 @@ export default function ProjectPage() {
     },
   });
 
+  const archiveMutation = useMutation({
+    mutationFn: () => isArchived
+      ? projectService.unarchive(workspaceId, projectId, accessToken!)
+      : projectService.archive(workspaceId, projectId, accessToken!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["projects", workspaceId] });
+    },
+  });
+
+  const reorderTasksMutation = useMutation({
+    mutationFn: (order: string[]) =>
+      taskService.reorder(workspaceId, projectId, order, accessToken!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks", workspaceId, projectId] });
+    },
+  });
+
   const deleteProjectMutation = useMutation({
     mutationFn: () => projectService.delete(workspaceId, projectId, accessToken!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects", workspaceId] });
       router.push(`/workspaces/${workspaceId}`);
     },
+    onError: (err: { message?: string }) => {
+      setConfirmDeleteProject(false);
+      alert(err.message ?? "Erro ao deletar projeto");
+    },
   });
 
-  function handleClick(task: Task) {
+  function handleTaskClick(task: Task) {
     router.push(`/workspaces/${workspaceId}/projects/${projectId}/tasks/${task.id}`);
   }
 
@@ -100,14 +133,29 @@ export default function ProjectPage() {
     <div className="space-y-6">
       <BackLink href={`/workspaces/${workspaceId}`} label="Projetos" />
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Tarefas</h1>
+        <div>
+          <h1 className="text-2xl font-bold">{project?.name ?? "Tarefas"}</h1>
+          {isArchived && (
+            <span className="text-xs text-muted-foreground">Projeto arquivado</span>
+          )}
+        </div>
         <div className="flex gap-2">
-          {isAdminOrOwner && (
+          {isAdminOrOwner && !isArchived && (
             <Button onClick={() => setShowForm(true)}>Nova tarefa</Button>
+          )}
+          <Button variant="outline" asChild>
+            <Link href={`/workspaces/${workspaceId}/projects/${projectId}/activity`}>
+              Histórico
+            </Link>
+          </Button>
+          {isAdminOrOwner && (
+            <Button variant="outline" onClick={() => archiveMutation.mutate()}>
+              {isArchived ? "Desarquivar" : "Arquivar"}
+            </Button>
           )}
           {isAdminOrOwner && (
             <Button variant="outline" onClick={() => setConfirmDeleteProject(true)}>
-              Deletar projeto
+              Deletar
             </Button>
           )}
         </div>
@@ -166,11 +214,12 @@ export default function ProjectPage() {
         </p>
       )}
 
-      <div className="space-y-2">
-        {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onClick={handleClick} />
-        ))}
-      </div>
+      <SortableTaskList
+        tasks={tasks}
+        onTaskClick={handleTaskClick}
+        canReorder={isAdminOrOwner && !selectedLabel}
+        onReorder={(order) => reorderTasksMutation.mutate(order)}
+      />
     </div>
   );
 }

@@ -9,8 +9,8 @@ export const commentService = {
     return api.get(base(workspaceId, projectId, taskId), token);
   },
 
-  create(workspaceId: string, projectId: string, taskId: string, content: string, token: string) {
-    return api.post(base(workspaceId, projectId, taskId), { content }, token);
+  create(workspaceId: string, projectId: string, taskId: string, content: string, mentions: string[], token: string) {
+    return api.post(base(workspaceId, projectId, taskId), { content, mention_ids: mentions }, token);
   },
 
   update(workspaceId: string, projectId: string, taskId: string, commentId: string, content: string, token: string) {
@@ -19,5 +19,9 @@ export const commentService = {
 
   delete(workspaceId: string, projectId: string, taskId: string, commentId: string, token: string) {
     return api.delete(`${base(workspaceId, projectId, taskId)}/${commentId}`, token);
+  },
+
+  reply(workspaceId: string, projectId: string, taskId: string, content: string, parentId: string, mentions: string[], token: string) {
+    return api.post(base(workspaceId, projectId, taskId), { content, parent_id: parentId, mention_ids: mentions }, token);
   },
 };

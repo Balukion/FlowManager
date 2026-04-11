@@ -16,4 +16,12 @@ export const invitationService = {
   accept(inviteToken: string, token: string) {
     return api.post(`/invitations/${inviteToken}/accept`, {}, token);
   },
+
+  resend(workspaceId: string, invitationId: string, token: string) {
+    return api.post(`/workspaces/${workspaceId}/invitations/${invitationId}/resend`, {}, token);
+  },
+
+  preview(inviteToken: string) {
+    return api.get(`/invitations/preview?token=${encodeURIComponent(inviteToken)}`);
+  },
 };

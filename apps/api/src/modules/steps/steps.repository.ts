@@ -56,6 +56,40 @@ export class StepsRepository {
     return prisma.step.update({ where: { id }, data: { deleted_at: new Date() } });
   }
 
+  async findAssignedToUser(workspaceId: string, userId: string) {
+    return prisma.step.findMany({
+      where: {
+        deleted_at: null,
+        assignments: {
+          some: { user_id: userId, unassigned_at: null },
+        },
+        task: {
+          deleted_at: null,
+          project: {
+            deleted_at: null,
+            workspace_id: workspaceId,
+          },
+        },
+      },
+      include: {
+        task: {
+          select: {
+            id: true,
+            title: true,
+            number: true,
+            project_id: true,
+            project: { select: { id: true, name: true } },
+          },
+        },
+        assignments: {
+          where: { unassigned_at: null },
+          include: { user: { select: { id: true, name: true, avatar_url: true } } },
+        },
+      },
+      orderBy: { deadline: "asc" },
+    });
+  }
+
   // Assignments
 
   async findActiveAssignment(stepId: string, userId: string) {

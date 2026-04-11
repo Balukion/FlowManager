@@ -5,6 +5,12 @@ import { makeTask } from "../../../tests/helpers/factories/task.factory.js";
 import { makeWorkspace } from "../../../tests/helpers/factories/workspace.factory.js";
 import { makeComment } from "../../../tests/helpers/factories/comment.factory.js";
 
+vi.mock("../../lib/resend.js", () => ({
+  sendEmail: vi.fn().mockResolvedValue(undefined),
+}));
+
+import { sendEmail } from "../../lib/resend.js";
+
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockRepo = {
@@ -23,10 +29,12 @@ const mockTasksRepo = {
 const mockWorkspacesRepo = {
   findById: vi.fn(),
   findMember: vi.fn(),
+  findMemberWithUser: vi.fn(),
 };
 
 const mockNotifRepo = {
   create: vi.fn(),
+  markAsSent: vi.fn(),
 };
 
 let service: CommentsService;
@@ -56,9 +64,11 @@ describe("createComment — mencões", () => {
     const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID });
     mockWorkspacesRepo.findById.mockResolvedValue(workspace);
     mockWorkspacesRepo.findMember.mockResolvedValue({ role: "MEMBER" });
+    mockWorkspacesRepo.findMemberWithUser.mockResolvedValue({ role: "MEMBER", user: { email: null, name: "Membro" } });
     mockTasksRepo.findById.mockResolvedValue(task);
     mockRepo.create.mockResolvedValue(makeComment({ id: "comment-1", task_id: TASK_ID, user_id: USER_ID }));
     mockRepo.createMention.mockResolvedValue(undefined);
+    mockNotifRepo.create.mockResolvedValue(undefined);
   });
 
   it("deve criar menção para usuário membro do workspace mencionado no conteúdo", async () => {
@@ -73,11 +83,7 @@ describe("createComment — mencões", () => {
     const NON_MEMBER_ID = "00000000-0000-0000-0000-000000000099";
     const content = `Olá @${NON_MEMBER_ID}`;
 
-    // primeira chamada: requireMember (chamador) — membro
-    // segunda chamada: findMember do mencionado — null (não é membro)
-    mockWorkspacesRepo.findMember
-      .mockResolvedValueOnce({ role: "MEMBER" }) // chamador
-      .mockResolvedValueOnce(null); // mencionado
+    mockWorkspacesRepo.findMemberWithUser.mockResolvedValueOnce(null);
 
     await service.createComment(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, { content });
 
@@ -99,6 +105,7 @@ describe("createComment — notificação COMMENT_MENTION", () => {
     const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID, title: "Tarefa X" });
     mockWorkspacesRepo.findById.mockResolvedValue(workspace);
     mockWorkspacesRepo.findMember.mockResolvedValue({ role: "MEMBER" });
+    mockWorkspacesRepo.findMemberWithUser.mockResolvedValue({ role: "MEMBER", user: { email: null, name: "Membro" } });
     mockTasksRepo.findById.mockResolvedValue(task);
     mockRepo.create.mockResolvedValue(makeComment({ id: "comment-1", task_id: TASK_ID, user_id: USER_ID }));
     mockRepo.createMention.mockResolvedValue(undefined);
@@ -122,9 +129,7 @@ describe("createComment — notificação COMMENT_MENTION", () => {
     const NON_MEMBER_ID = "00000000-0000-0000-0000-000000000099";
     const content = `@${NON_MEMBER_ID}`;
 
-    mockWorkspacesRepo.findMember
-      .mockResolvedValueOnce({ role: "MEMBER" })
-      .mockResolvedValueOnce(null);
+    mockWorkspacesRepo.findMemberWithUser.mockResolvedValueOnce(null);
 
     await service.createComment(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, { content });
 
@@ -146,6 +151,107 @@ describe("createComment — notificação COMMENT_MENTION", () => {
     await expect(
       service.createComment(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, { content }),
     ).resolves.not.toThrow();
+  });
+});
+
+// ─── createComment — log de atividade ────────────────────────────────────────
+
+describe("createComment — log de atividade", () => {
+  const WORKSPACE_ID = "ws-1";
+  const PROJECT_ID = "proj-1";
+  const TASK_ID = "task-1";
+  const USER_ID = "user-1";
+
+  it("deve criar log COMMENT_ADDED com task_id quando activityRepo está disponível", async () => {
+    const mockActivityRepo = { createLog: vi.fn().mockResolvedValue(undefined) };
+    const serviceComActivity = new CommentsService(
+      mockRepo as any,
+      mockTasksRepo as any,
+      mockWorkspacesRepo as any,
+      mockActivityRepo as any,
+      mockNotifRepo as any,
+    );
+
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID });
+    const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "MEMBER" });
+    mockTasksRepo.findById.mockResolvedValue(task);
+    mockRepo.create.mockResolvedValue(makeComment({ id: "comment-1", task_id: TASK_ID, user_id: USER_ID }));
+
+    await serviceComActivity.createComment(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, {
+      content: "Comentário novo",
+    });
+
+    expect(mockActivityRepo.createLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspace_id: WORKSPACE_ID,
+        user_id: USER_ID,
+        action: "COMMENT_CREATED",
+        task_id: TASK_ID,
+      }),
+    );
+  });
+
+  it("não deve falhar se activityRepo não estiver disponível", async () => {
+    const serviceSeActivity = new CommentsService(
+      mockRepo as any,
+      mockTasksRepo as any,
+      mockWorkspacesRepo as any,
+      undefined,
+      mockNotifRepo as any,
+    );
+
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID });
+    const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "MEMBER" });
+    mockTasksRepo.findById.mockResolvedValue(task);
+    mockRepo.create.mockResolvedValue(makeComment({ id: "comment-1", task_id: TASK_ID, user_id: USER_ID }));
+
+    await expect(
+      serviceSeActivity.createComment(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, {
+        content: "Comentário",
+      }),
+    ).resolves.not.toThrow();
+  });
+});
+
+// ─── deleteComment — log de atividade ────────────────────────────────────────
+
+describe("deleteComment — log de atividade", () => {
+  const WORKSPACE_ID = "ws-1";
+  const TASK_ID = "task-1";
+  const COMMENT_ID = "comment-1";
+  const USER_ID = "user-1";
+
+  it("deve criar log COMMENT_DELETED com task_id quando activityRepo está disponível", async () => {
+    const mockActivityRepo = { createLog: vi.fn().mockResolvedValue(undefined) };
+    const serviceComActivity = new CommentsService(
+      mockRepo as any,
+      mockTasksRepo as any,
+      mockWorkspacesRepo as any,
+      mockActivityRepo as any,
+      mockNotifRepo as any,
+    );
+
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID });
+    const comment = makeComment({ id: COMMENT_ID, task_id: TASK_ID, user_id: USER_ID });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "MEMBER" });
+    mockRepo.findById.mockResolvedValue(comment);
+    mockRepo.softDelete.mockResolvedValue(undefined);
+
+    await serviceComActivity.deleteComment(WORKSPACE_ID, "proj-1", TASK_ID, COMMENT_ID, USER_ID);
+
+    expect(mockActivityRepo.createLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspace_id: WORKSPACE_ID,
+        user_id: USER_ID,
+        action: "COMMENT_DELETED",
+        task_id: TASK_ID,
+      }),
+    );
   });
 });
 
@@ -220,5 +326,73 @@ describe("deleteComment — permissões", () => {
     await expect(
       service.deleteComment(WORKSPACE_ID, "proj-1", TASK_ID, COMMENT_ID, USER_ID),
     ).resolves.not.toThrow();
+  });
+});
+
+// ─── createComment — email de menção ─────────────────────────────────────────
+
+describe("createComment — email de menção", () => {
+  const WORKSPACE_ID = "ws-1";
+  const PROJECT_ID = "proj-1";
+  const TASK_ID = "task-1";
+  const USER_ID = "user-1";
+  const MENTIONED_USER_ID = "00000000-0000-0000-0000-000000000002";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID, name: "WS Alpha" });
+    const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID, title: "Tarefa X" });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "MEMBER" });
+    mockTasksRepo.findById.mockResolvedValue(task);
+    mockRepo.create.mockResolvedValue(makeComment({ id: "comment-1", task_id: TASK_ID, user_id: USER_ID }));
+    mockRepo.createMention.mockResolvedValue(undefined);
+    mockNotifRepo.create.mockResolvedValue({ id: "notif-1", user_id: MENTIONED_USER_ID });
+    mockNotifRepo.markAsSent.mockResolvedValue(undefined);
+  });
+
+  it("envia email para o usuário mencionado quando notificação é criada", async () => {
+    mockWorkspacesRepo.findMemberWithUser
+      .mockResolvedValueOnce({ role: "MEMBER", user: { email: "mentioned@test.com", name: "João" } });
+
+    const content = `Ei @${MENTIONED_USER_ID} olha isso`;
+    await service.createComment(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, { content });
+
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ template: "comment-mention" }),
+    );
+  });
+
+  it("chama markAsSent após email enviado com sucesso", async () => {
+    mockWorkspacesRepo.findMemberWithUser
+      .mockResolvedValueOnce({ role: "MEMBER", user: { email: "mentioned@test.com", name: "João" } });
+
+    const content = `@${MENTIONED_USER_ID}`;
+    await service.createComment(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, { content });
+
+    expect(mockNotifRepo.markAsSent).toHaveBeenCalledWith("notif-1");
+  });
+
+  it("não chama markAsSent se email falhar (silencioso)", async () => {
+    vi.mocked(sendEmail).mockRejectedValueOnce(new Error("Resend error"));
+    mockWorkspacesRepo.findMemberWithUser
+      .mockResolvedValueOnce({ role: "MEMBER", user: { email: "mentioned@test.com", name: "João" } });
+
+    const content = `@${MENTIONED_USER_ID}`;
+    await expect(
+      service.createComment(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, { content }),
+    ).resolves.not.toThrow();
+
+    expect(mockNotifRepo.markAsSent).not.toHaveBeenCalled();
+  });
+
+  it("não envia email quando membro mencionado não tem email", async () => {
+    mockWorkspacesRepo.findMemberWithUser
+      .mockResolvedValueOnce({ role: "MEMBER", user: { email: null, name: "João" } });
+
+    const content = `@${MENTIONED_USER_ID}`;
+    await service.createComment(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, { content });
+
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 });

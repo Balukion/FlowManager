@@ -20,9 +20,10 @@ interface TaskLabel {
 interface TaskCardProps {
   task: Task & { task_labels?: TaskLabel[] };
   onClick: (task: Task) => void;
+  position?: number;
 }
 
-export function TaskCard({ task, onClick }: TaskCardProps) {
+export function TaskCard({ task, onClick, position }: TaskCardProps) {
   const labels = task.task_labels ?? [];
 
   return (
@@ -32,8 +33,12 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 space-y-1.5">
-          <p className="text-xs text-muted-foreground">#{task.number}</p>
-          <p className="font-medium">{task.title}</p>
+          <div className="flex items-center gap-2">
+            {position !== undefined && (
+              <span className="text-xs font-mono text-muted-foreground">#{position}</span>
+            )}
+            <p className="font-medium">{task.title}</p>
+          </div>
           {labels.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {labels.map(({ label }) => (

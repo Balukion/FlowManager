@@ -5,13 +5,74 @@ import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 
+const TIMEZONES = [
+  "UTC",
+  "America/Noronha",
+  "America/Fortaleza",
+  "America/Recife",
+  "America/Maceio",
+  "America/Bahia",
+  "America/Sao_Paulo",
+  "America/Manaus",
+  "America/Porto_Velho",
+  "America/Boa_Vista",
+  "America/Rio_Branco",
+  "America/Belem",
+  "America/Santarem",
+  "America/Cuiaba",
+  "America/Campo_Grande",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Toronto",
+  "America/Vancouver",
+  "America/Buenos_Aires",
+  "America/Santiago",
+  "America/Bogota",
+  "America/Lima",
+  "America/Caracas",
+  "America/Mexico_City",
+  "Europe/London",
+  "Europe/Lisbon",
+  "Europe/Madrid",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Rome",
+  "Europe/Amsterdam",
+  "Europe/Stockholm",
+  "Europe/Warsaw",
+  "Europe/Bucharest",
+  "Europe/Helsinki",
+  "Europe/Moscow",
+  "Africa/Cairo",
+  "Africa/Johannesburg",
+  "Africa/Lagos",
+  "Asia/Dubai",
+  "Asia/Karachi",
+  "Asia/Kolkata",
+  "Asia/Dhaka",
+  "Asia/Bangkok",
+  "Asia/Singapore",
+  "Asia/Shanghai",
+  "Asia/Tokyo",
+  "Asia/Seoul",
+  "Australia/Perth",
+  "Australia/Adelaide",
+  "Australia/Sydney",
+  "Pacific/Auckland",
+  "Pacific/Honolulu",
+];
+
 interface ProfileFormProps {
   initialName: string;
-  onSubmit: (name: string) => Promise<void>;
+  initialTimezone: string;
+  onSubmit: (data: { name: string; timezone: string }) => Promise<void>;
 }
 
-export function ProfileForm({ initialName, onSubmit }: ProfileFormProps) {
+export function ProfileForm({ initialName, initialTimezone, onSubmit }: ProfileFormProps) {
   const [name, setName] = useState(initialName);
+  const [timezone, setTimezone] = useState(initialTimezone);
   const [loading, setLoading] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -28,7 +89,7 @@ export function ProfileForm({ initialName, onSubmit }: ProfileFormProps) {
     setSuccess(false);
     setLoading(true);
     try {
-      await onSubmit(name.trim());
+      await onSubmit({ name: name.trim(), timezone });
       setSuccess(true);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Algo deu errado");
@@ -48,6 +109,21 @@ export function ProfileForm({ initialName, onSubmit }: ProfileFormProps) {
           placeholder="Seu nome"
         />
         {nameError && <p className="text-sm text-destructive">{nameError}</p>}
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="profile-timezone">Fuso horário</Label>
+        <select
+          id="profile-timezone"
+          value={timezone}
+          onChange={(e) => { setTimezone(e.target.value); setSuccess(false); }}
+          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          aria-label="Fuso horário"
+        >
+          {TIMEZONES.map((tz) => (
+            <option key={tz} value={tz}>{tz}</option>
+          ))}
+        </select>
       </div>
 
       {submitError && <p className="text-sm text-destructive">{submitError}</p>}
