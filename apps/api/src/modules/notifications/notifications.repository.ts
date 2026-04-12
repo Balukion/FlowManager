@@ -1,3 +1,4 @@
+import { type NotificationType } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 
 export class NotificationsRepository {
@@ -33,13 +34,13 @@ export class NotificationsRepository {
 
   async create(data: {
     user_id: string;
-    type: string;
+    type: NotificationType;
     title: string;
     body: string;
     entity_type?: string;
     entity_id?: string;
   }) {
-    return prisma.notification.create({ data: data as any });
+    return prisma.notification.create({ data });
   }
 
   async markAsSent(id: string) {

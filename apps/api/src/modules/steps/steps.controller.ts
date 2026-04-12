@@ -1,4 +1,5 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
+import { type StepStatus } from "@prisma/client";
 import { StepsService } from "./steps.service.js";
 import { StepsRepository } from "./steps.repository.js";
 import { TasksRepository } from "../tasks/tasks.repository.js";
@@ -68,7 +69,7 @@ export async function updateStep(
 }
 
 export async function updateStatus(
-  request: FastifyRequest<{ Params: StepParams; Body: { status: string } }>,
+  request: FastifyRequest<{ Params: StepParams; Body: { status: StepStatus } }>,
   reply: FastifyReply,
 ) {
   const result = await service.updateStatus(

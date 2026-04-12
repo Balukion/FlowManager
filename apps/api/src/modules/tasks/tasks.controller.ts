@@ -1,4 +1,5 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
+import { type Priority, type TaskStatus } from "@prisma/client";
 import { TasksService } from "./tasks.service.js";
 import { TasksRepository } from "./tasks.repository.js";
 import { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
@@ -17,7 +18,7 @@ type TaskParams = { id: string; projectId: string; taskId: string };
 export async function createTask(
   request: FastifyRequest<{
     Params: { id: string; projectId: string };
-    Body: { title: string; priority: string; description?: string | null; deadline?: string | null };
+    Body: { title: string; priority: Priority; description?: string | null; deadline?: string | null };
   }>,
   reply: FastifyReply,
 ) {
@@ -26,7 +27,7 @@ export async function createTask(
 }
 
 export async function listTasks(
-  request: FastifyRequest<{ Params: { id: string; projectId: string }; Querystring: { status?: string; priority?: string; label_id?: string } }>,
+  request: FastifyRequest<{ Params: { id: string; projectId: string }; Querystring: { status?: TaskStatus; priority?: Priority; label_id?: string } }>,
   reply: FastifyReply,
 ) {
   const result = await service.listTasks(request.params.id, request.params.projectId, request.userId, request.query);
@@ -42,7 +43,7 @@ export async function getTask(
 }
 
 export async function updateTask(
-  request: FastifyRequest<{ Params: TaskParams; Body: { title?: string; description?: string | null; priority?: string; deadline?: string | null } }>,
+  request: FastifyRequest<{ Params: TaskParams; Body: { title?: string; description?: string | null; priority?: Priority; deadline?: string | null } }>,
   reply: FastifyReply,
 ) {
   const { warnings, ...data } = await service.updateTask(request.params.id, request.params.projectId, request.params.taskId, request.userId, request.body);
@@ -50,7 +51,7 @@ export async function updateTask(
 }
 
 export async function updateStatus(
-  request: FastifyRequest<{ Params: TaskParams; Body: { status: string } }>,
+  request: FastifyRequest<{ Params: TaskParams; Body: { status: TaskStatus } }>,
   reply: FastifyReply,
 ) {
   const result = await service.updateStatus(request.params.id, request.params.projectId, request.params.taskId, request.userId, request.body.status);

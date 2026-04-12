@@ -1,3 +1,4 @@
+import { type InvitationStatus, type Role } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 
 export class InvitationsRepository {
@@ -17,11 +18,11 @@ export class InvitationsRepository {
     workspace_id: string;
     invited_by: string;
     email: string;
-    role: string;
+    role: Role;
     token_hash: string;
     expires_at: Date;
   }) {
-    return prisma.invitation.create({ data: data as any });
+    return prisma.invitation.create({ data });
   }
 
   async findByWorkspace(workspaceId: string) {
@@ -56,8 +57,8 @@ export class InvitationsRepository {
     return prisma.invitation.delete({ where: { id } });
   }
 
-  async updateStatus(id: string, status: string, extra?: { accepted_at?: Date; declined_at?: Date }) {
-    return prisma.invitation.update({ where: { id }, data: { status: status as any, ...extra } });
+  async updateStatus(id: string, status: InvitationStatus, extra?: { accepted_at?: Date; declined_at?: Date }) {
+    return prisma.invitation.update({ where: { id }, data: { status, ...extra } });
   }
 
   async resendToken(id: string, tokenHash: string, expiresAt: Date) {
@@ -77,9 +78,9 @@ export class InvitationsRepository {
     });
   }
 
-  async createWorkspaceMember(workspaceId: string, userId: string, role: string) {
+  async createWorkspaceMember(workspaceId: string, userId: string, role: Role) {
     return prisma.workspaceMember.create({
-      data: { workspace_id: workspaceId, user_id: userId, role: role as any, joined_at: new Date() },
+      data: { workspace_id: workspaceId, user_id: userId, role, joined_at: new Date() },
     });
   }
 }

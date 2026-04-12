@@ -1,3 +1,4 @@
+import { type StepStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 
 export class StepsRepository {
@@ -17,7 +18,7 @@ export class StepsRepository {
     deadline?: Date | null;
     created_by: string;
   }) {
-    return prisma.step.create({ data: data as any });
+    return prisma.step.create({ data });
   }
 
   async findById(id: string) {
@@ -45,11 +46,11 @@ export class StepsRepository {
     deadline?: Date | null;
     order?: number;
   }) {
-    return prisma.step.update({ where: { id }, data: data as any });
+    return prisma.step.update({ where: { id }, data });
   }
 
-  async updateStatus(id: string, status: string) {
-    return prisma.step.update({ where: { id }, data: { status: status as any } });
+  async updateStatus(id: string, status: StepStatus) {
+    return prisma.step.update({ where: { id }, data: { status } });
   }
 
   async softDelete(id: string) {

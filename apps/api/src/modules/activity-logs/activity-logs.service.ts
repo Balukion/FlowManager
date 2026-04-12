@@ -1,3 +1,4 @@
+import { type ActivityAction } from "@prisma/client";
 import { WorkspaceGuard } from "../../lib/workspace-guard.js";
 import type { ActivityLogsRepository } from "./activity-logs.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
@@ -18,7 +19,7 @@ export class ActivityLogsService {
   async listByWorkspace(
     workspaceId: string,
     userId: string,
-    options: { cursor?: string; limit?: number; user_id?: string; action?: string; from?: string; to?: string },
+    options: { cursor?: string; limit?: number; user_id?: string; action?: ActivityAction; from?: string; to?: string },
   ) {
     await this.guard.requireMemberOrOwner(workspaceId, userId);
 

@@ -1,3 +1,4 @@
+import { type Priority, type TaskStatus } from "@prisma/client";
 import { BadRequestError, ConflictError, NotFoundError } from "../../errors/index.js";
 import { sendEmail } from "../../lib/resend.js";
 import { env } from "../../config/env.js";
@@ -23,7 +24,7 @@ export class TasksService {
     workspaceId: string,
     projectId: string,
     userId: string,
-    data: { title: string; priority: string; description?: string | null; deadline?: string | null },
+    data: { title: string; priority: Priority; description?: string | null; deadline?: string | null },
   ) {
     await this.guard.requireAdminOrOwner(workspaceId, userId);
 
@@ -51,7 +52,7 @@ export class TasksService {
     workspaceId: string,
     projectId: string,
     userId: string,
-    filters: { status?: string; priority?: string; label_id?: string },
+    filters: { status?: TaskStatus; priority?: Priority; label_id?: string },
   ) {
     await this.guard.requireMember(workspaceId, userId);
     const tasks = await this.repo.findByProject(projectId, filters);
@@ -73,7 +74,7 @@ export class TasksService {
     projectId: string,
     taskId: string,
     userId: string,
-    data: { title?: string; description?: string | null; priority?: string; deadline?: string | null },
+    data: { title?: string; description?: string | null; priority?: Priority; deadline?: string | null },
   ) {
     await this.guard.requireAdminOrOwner(workspaceId, userId);
 
@@ -111,7 +112,7 @@ export class TasksService {
     projectId: string,
     taskId: string,
     userId: string,
-    status: string,
+    status: TaskStatus,
   ) {
     const { workspace } = await this.guard.requireAdminOrOwner(workspaceId, userId);
 
@@ -133,42 +134,7 @@ export class TasksService {
       metadata: { from: task.status, to: status, is_manual: true },
     });
 
-    const watchers = await this.repo.findWatchers(taskId);
-    for (const watcher of watchers) {
-      try {
-        const notif = await this.notifRepo?.create({
-          user_id: watcher.user_id,
-          type: "TASK_STATUS_CHANGED",
-          title: "Status da tarefa alterado",
-          body: `"${task.title}" mudou de ${task.status} para ${status}`,
-          entity_type: "task",
-          entity_id: taskId,
-        });
-
-        if (notif?.id && watcher.user?.email) {
-          try {
-            await sendEmail({
-              to: watcher.user.email,
-              subject: `Status da tarefa "${task.title}" foi alterado`,
-              template: "task-status-changed",
-              data: {
-                user_name: watcher.user.name,
-                task_title: task.title,
-                from_status: task.status,
-                to_status: status,
-                workspace_name: workspace.name,
-                task_url: `${env.FRONTEND_URL}/workspaces/${workspaceId}/projects/${projectId}/tasks/${taskId}`,
-              },
-            });
-            await this.notifRepo?.markAsSent(notif.id);
-          } catch {
-            // Email falhou — retry job irá tentar novamente (sent_at permanece null)
-          }
-        }
-      } catch {
-        // Criação da notificação falhou — continuar silenciosamente
-      }
-    }
+    await this.notifyWatchers(task, status, workspace, taskId, projectId, workspaceId);
 
     return { task: updated };
   }
@@ -237,6 +203,52 @@ export class TasksService {
     if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");
 
     await this.repo.softDelete(taskId);
+  }
+
+  private async notifyWatchers(
+    task: { id: string; title: string; status: string },
+    newStatus: string,
+    workspace: { name: string },
+    taskId: string,
+    projectId: string,
+    workspaceId: string,
+  ): Promise<void> {
+    const watchers = await this.repo.findWatchers(taskId);
+    for (const watcher of watchers) {
+      try {
+        const notif = await this.notifRepo?.create({
+          user_id: watcher.user_id,
+          type: "TASK_STATUS_CHANGED",
+          title: "Status da tarefa alterado",
+          body: `"${task.title}" mudou de ${task.status} para ${newStatus}`,
+          entity_type: "task",
+          entity_id: taskId,
+        });
+
+        if (notif?.id && watcher.user?.email) {
+          try {
+            await sendEmail({
+              to: watcher.user.email,
+              subject: `Status da tarefa "${task.title}" foi alterado`,
+              template: "task-status-changed",
+              data: {
+                user_name: watcher.user.name,
+                task_title: task.title,
+                from_status: task.status,
+                to_status: newStatus,
+                workspace_name: workspace.name,
+                task_url: `${env.FRONTEND_URL}/workspaces/${workspaceId}/projects/${projectId}/tasks/${taskId}`,
+              },
+            });
+            await this.notifRepo?.markAsSent(notif.id);
+          } catch {
+            // Email falhou — retry job irá tentar novamente (sent_at permanece null)
+          }
+        }
+      } catch {
+        // Criação da notificação falhou — continuar silenciosamente
+      }
+    }
   }
 
   // Called by steps service after a step status changes

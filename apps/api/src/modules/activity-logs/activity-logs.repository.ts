@@ -1,3 +1,4 @@
+import { type ActivityAction } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 
 export class ActivityLogsRepository {
@@ -7,7 +8,7 @@ export class ActivityLogsRepository {
       cursor?: string;
       limit: number;
       user_id?: string;
-      action?: string;
+      action?: ActivityAction;
       from?: string;
       to?: string;
     },
@@ -18,7 +19,7 @@ export class ActivityLogsRepository {
       where: {
         workspace_id: workspaceId,
         ...(user_id ? { user_id } : {}),
-        ...(action ? { action: action as any } : {}),
+        ...(action ? { action } : {}),
         ...(from || to
           ? {
               created_at: {
@@ -61,7 +62,7 @@ export class ActivityLogsRepository {
   async createLog(data: {
     workspace_id?: string | null;
     user_id: string;
-    action: string;
+    action: ActivityAction;
     task_id?: string | null;
     metadata?: object;
   }) {
@@ -69,7 +70,7 @@ export class ActivityLogsRepository {
       data: {
         workspace_id: data.workspace_id ?? null,
         user_id: data.user_id,
-        action: data.action as any,
+        action: data.action,
         task_id: data.task_id ?? null,
         metadata: data.metadata ?? {},
       },

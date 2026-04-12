@@ -1,3 +1,4 @@
+import { type Priority, type TaskStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 
 export class TasksRepository {
@@ -22,12 +23,12 @@ export class TasksRepository {
     title: string;
     number: number;
     order: number;
-    priority: string;
+    priority: Priority;
     description?: string | null;
     deadline?: Date | null;
     created_by: string;
   }) {
-    return prisma.task.create({ data: data as any });
+    return prisma.task.create({ data });
   }
 
   async findById(id: string) {
@@ -44,14 +45,14 @@ export class TasksRepository {
 
   async findByProject(
     projectId: string,
-    filters: { status?: string; priority?: string; label_id?: string },
+    filters: { status?: TaskStatus; priority?: Priority; label_id?: string },
   ) {
     return prisma.task.findMany({
       where: {
         project_id: projectId,
         deleted_at: null,
-        ...(filters.status ? { status: filters.status as any } : {}),
-        ...(filters.priority ? { priority: filters.priority as any } : {}),
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.priority ? { priority: filters.priority } : {}),
         ...(filters.label_id
           ? { task_labels: { some: { label_id: filters.label_id } } }
           : {}),
@@ -68,16 +69,16 @@ export class TasksRepository {
   async update(id: string, data: {
     title?: string;
     description?: string | null;
-    priority?: string;
+    priority?: Priority;
     deadline?: Date | null;
-    status?: string;
+    status?: TaskStatus;
     status_is_manual?: boolean;
     status_overridden_by?: string | null;
     status_overridden_at?: Date | null;
     order?: number;
     assignee_id?: string | null;
   }) {
-    return prisma.task.update({ where: { id }, data: data as any });
+    return prisma.task.update({ where: { id }, data });
   }
 
   async updateOrder(id: string, order: number) {

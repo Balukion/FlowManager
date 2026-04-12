@@ -1,3 +1,4 @@
+import { type StepStatus } from "@prisma/client";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../../errors/index.js";
 import { WorkspaceGuard } from "../../lib/workspace-guard.js";
 import type { StepsRepository } from "./steps.repository.js";
@@ -110,7 +111,7 @@ export class StepsService {
     taskId: string,
     stepId: string,
     userId: string,
-    status: string,
+    status: StepStatus,
   ) {
     const { workspace, member } = await this.guard.requireMember(workspaceId, userId);
     const isOwner = workspace.owner_id === userId;

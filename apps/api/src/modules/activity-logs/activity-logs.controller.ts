@@ -1,4 +1,5 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
+import { type ActivityAction } from "@prisma/client";
 import { ActivityLogsService } from "./activity-logs.service.js";
 import { ActivityLogsRepository } from "./activity-logs.repository.js";
 import { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
@@ -11,7 +12,7 @@ const service = new ActivityLogsService(
 export async function listByWorkspace(
   request: FastifyRequest<{
     Params: { id: string };
-    Querystring: { cursor?: string; limit?: number; user_id?: string; action?: string; from?: string; to?: string };
+    Querystring: { cursor?: string; limit?: number; user_id?: string; action?: ActivityAction; from?: string; to?: string };
   }>,
   reply: FastifyReply,
 ) {
