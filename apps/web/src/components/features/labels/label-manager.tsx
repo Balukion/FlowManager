@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { labelService } from "@web/services/label.service";
 import { LabelBadge } from "./label-badge";
+import { LabelForm } from "./label-form";
 import { Button } from "@web/components/ui/button";
-import { Input } from "@web/components/ui/input";
 
 interface Label {
   id: string;
@@ -67,30 +67,17 @@ export function LabelManager({ workspaceId, token, labels, canManage = false, on
 
   return (
     <div className="space-y-4">
-      {/* Formulário de criação */}
       {canManage && (
-        <div className="flex gap-2">
-          <input
-            type="color"
-            value={newColor}
-            onChange={(e) => setNewColor(e.target.value)}
-            className="h-9 w-9 cursor-pointer rounded border p-0.5"
-            aria-label="Cor da nova label"
-          />
-          <Input
-            placeholder="Nome da label"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-            className="flex-1"
-          />
-          <Button type="button" onClick={handleCreate} aria-label="Criar label">
-            Criar
-          </Button>
-        </div>
+        <LabelForm
+          name={newName}
+          color={newColor}
+          onNameChange={setNewName}
+          onColorChange={setNewColor}
+          onSubmit={handleCreate}
+          submitLabel="Criar"
+        />
       )}
 
-      {/* Lista */}
       {labels.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhuma label criada ainda.</p>
       ) : (
@@ -98,27 +85,15 @@ export function LabelManager({ workspaceId, token, labels, canManage = false, on
           {labels.map((label) => (
             <li key={label.id} className="flex items-center gap-2 rounded-md border p-2">
               {editingId === label.id ? (
-                <>
-                  <input
-                    type="color"
-                    value={editColor}
-                    onChange={(e) => setEditColor(e.target.value)}
-                    className="h-8 w-8 cursor-pointer rounded border p-0.5"
-                    aria-label="Cor da label"
-                  />
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="flex-1"
-                    autoFocus
-                  />
-                  <Button size="sm" onClick={() => handleSave(label.id)} aria-label="Salvar">
-                    Salvar
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={cancelEdit} aria-label="Cancelar">
-                    Cancelar
-                  </Button>
-                </>
+                <LabelForm
+                  name={editName}
+                  color={editColor}
+                  onNameChange={setEditName}
+                  onColorChange={setEditColor}
+                  onSubmit={() => handleSave(label.id)}
+                  onCancel={cancelEdit}
+                  submitLabel="Salvar"
+                />
               ) : (
                 <>
                   <LabelBadge name={label.name} color={label.color} />
