@@ -2,8 +2,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../../tests/helpers/setup.js";
-import crypto from "crypto";
 import { addHours } from "@flowmanager/shared";
+import { generateToken, hashToken } from "../../lib/crypto.js";
 
 // Envio de convite dispara email via Resend. Mockamos para não depender
 // do serviço externo nos testes.
@@ -106,8 +106,8 @@ async function criarConviteNoBanco(
     status?: "PENDING" | "ACCEPTED" | "DECLINED" | "EXPIRED";
   } = {},
 ) {
-  const token = crypto.randomBytes(32).toString("hex");
-  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const token = generateToken();
+  const tokenHash = hashToken(token);
 
   const expiresAt = overrides.tokenExpirado
     ? new Date(Date.now() - 1000)
@@ -555,7 +555,7 @@ describe("POST /invitations/:token/accept", () => {
     });
 
     // Assert
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const tokenHash = hashToken(token);
     const convite = await prisma.invitation.findFirst({ where: { token_hash: tokenHash } });
     expect(convite?.status).toBe("ACCEPTED");
   });
@@ -731,7 +731,7 @@ describe("POST /invitations/:token/decline", () => {
     });
 
     // Assert
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const tokenHash = hashToken(token);
     const convite = await prisma.invitation.findFirst({ where: { token_hash: tokenHash } });
     expect(convite?.status).toBe("DECLINED");
   });

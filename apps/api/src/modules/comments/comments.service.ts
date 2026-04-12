@@ -1,14 +1,12 @@
 import { BadRequestError, ForbiddenError, NotFoundError } from "../../errors/index.js";
-import { sendEmail } from "../../lib/resend.js";
-import { env } from "../../config/env.js";
 import { WorkspaceGuard } from "../../lib/workspace-guard.js";
+import { processMentions } from "../../lib/mentions.js";
 import type { CommentsRepository } from "./comments.repository.js";
 import type { TasksRepository } from "../tasks/tasks.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
 import type { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
 import type { NotificationsRepository } from "../notifications/notifications.repository.js";
 
-const MENTION_REGEX = /@([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
@@ -59,43 +57,11 @@ export class CommentsService {
       task_id: taskId,
     });
 
-    const mentionedUserIds = [...data.content.matchAll(MENTION_REGEX)].map((m) => m[1]);
-    for (const mentionedUserId of mentionedUserIds) {
-      const member = await this.workspacesRepo.findMemberWithUser(workspaceId, mentionedUserId);
-      if (member) {
-        await this.repo.createMention(comment.id, mentionedUserId);
-        try {
-          const notif = await this.notifRepo?.create({
-            user_id: mentionedUserId,
-            type: "COMMENT_MENTION",
-            title: "Você foi mencionado",
-            body: `Você foi mencionado em um comentário na tarefa "${task.title}"`,
-            entity_type: "task",
-            entity_id: taskId,
-          });
-          if (notif?.id && (member as any).user?.email) {
-            try {
-              await sendEmail({
-                to: (member as any).user.email,
-                subject: `Você foi mencionado na tarefa "${task.title}"`,
-                template: "comment-mention",
-                data: {
-                  user_name: (member as any).user.name,
-                  task_title: task.title,
-                  commenter_name: userId,
-                  task_url: `${env.FRONTEND_URL}/workspaces/${workspaceId}/projects/${task.project_id}/tasks/${taskId}`,
-                },
-              });
-              await this.notifRepo?.markAsSent(notif.id);
-            } catch {
-              // Email falhou — retry job irá tentar novamente
-            }
-          }
-        } catch {
-          // Criação de notificação falhou — continuar silenciosamente
-        }
-      }
-    }
+    await processMentions(data.content, workspaceId, taskId, comment.id, userId, task, {
+      workspacesRepo: this.workspacesRepo,
+      commentsRepo: this.repo,
+      notifRepo: this.notifRepo,
+    });
 
     return { comment: { ...comment, author_id: comment.user_id } };
   }

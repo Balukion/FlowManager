@@ -111,4 +111,25 @@ export class WorkspacesRepository {
       data: { deleted_at: new Date() },
     });
   }
+
+  async deleteWithCascade(workspaceId: string) {
+    const now = new Date();
+    await prisma.$transaction([
+      prisma.step.updateMany({
+        where: { task: { project: { workspace_id: workspaceId } }, deleted_at: null },
+        data: { deleted_at: now },
+      }),
+      prisma.task.updateMany({
+        where: { project: { workspace_id: workspaceId }, deleted_at: null },
+        data: { deleted_at: now },
+      }),
+      prisma.project.updateMany({
+        where: { workspace_id: workspaceId, deleted_at: null },
+        data: { deleted_at: now },
+      }),
+      prisma.workspaceMember.deleteMany({ where: { workspace_id: workspaceId } }),
+      prisma.invitation.deleteMany({ where: { workspace_id: workspaceId } }),
+      prisma.workspace.update({ where: { id: workspaceId }, data: { deleted_at: now } }),
+    ]);
+  }
 }

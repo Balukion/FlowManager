@@ -3,8 +3,8 @@ import { buildApp } from "../../app.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../../tests/helpers/setup.js";
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import { addHours } from "@flowmanager/shared";
+import { generateToken, hashToken } from "../../lib/crypto.js";
 
 // forgot-password envia email de reset via Resend. Mockamos para não
 // depender do serviço externo nos testes.
@@ -38,8 +38,8 @@ afterAll(async () => {
 async function criarUsuarioComTokenVerificacao(overrides: {
   tokenExpirado?: boolean;
 } = {}) {
-  const token = crypto.randomBytes(32).toString("hex");
-  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const token = generateToken();
+  const tokenHash = hashToken(token);
   const hash = await bcrypt.hash("minhasenha123", 10);
 
   const expiresAt = overrides.tokenExpirado
@@ -64,8 +64,8 @@ async function criarUsuarioComTokenVerificacao(overrides: {
 async function criarUsuarioComTokenReset(overrides: {
   tokenExpirado?: boolean;
 } = {}) {
-  const token = crypto.randomBytes(32).toString("hex");
-  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const token = generateToken();
+  const tokenHash = hashToken(token);
   const hash = await bcrypt.hash("senhaantiga123", 10);
 
   const expiresAt = overrides.tokenExpirado

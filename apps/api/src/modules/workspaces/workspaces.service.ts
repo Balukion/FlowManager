@@ -71,16 +71,7 @@ export class WorkspacesService {
 
     if (workspace.owner_id !== userId) throw new ForbiddenError("Apenas o dono pode deletar o workspace");
 
-    // Cascade soft delete (projetos → tarefas → passos)
-    await this.repo.softDeleteStepsByWorkspace(workspaceId);
-    await this.repo.softDeleteTasksByWorkspace(workspaceId);
-    await this.repo.softDeleteProjectsByWorkspace(workspaceId);
-
-    // Delete imediato de membros e convites
-    await this.repo.deleteAllMembers(workspaceId);
-    await this.repo.deleteAllInvitations(workspaceId);
-
-    await this.repo.softDelete(workspaceId);
+    await this.repo.deleteWithCascade(workspaceId);
   }
 
   async listMembers(workspaceId: string, userId: string) {

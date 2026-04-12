@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import { signAccessToken } from "../../lib/jwt.js";
+import { generateToken, hashToken } from "../../lib/crypto.js";
 import { sendEmail } from "../../lib/resend.js";
 import { env } from "../../config/env.js";
 import { addHours, addDays } from "@flowmanager/shared";
@@ -10,14 +10,6 @@ import {
   UnauthorizedError,
 } from "../../errors/index.js";
 import type { UserRepository, TokenRepository } from "./auth.repository.js";
-
-function hashToken(token: string): string {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
-
-function generateToken(): string {
-  return crypto.randomBytes(32).toString("hex");
-}
 
 function stripPassword<T extends { password_hash?: string }>(user: T) {
   const { password_hash: _, ...safe } = user;

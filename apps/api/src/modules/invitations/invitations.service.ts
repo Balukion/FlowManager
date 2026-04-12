@@ -1,5 +1,5 @@
-import crypto from "crypto";
 import { addHours } from "@flowmanager/shared";
+import { generateToken, hashToken } from "../../lib/crypto.js";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../../errors/index.js";
 import { sendEmail } from "../../lib/resend.js";
 import { env } from "../../config/env.js";
@@ -32,8 +32,8 @@ export class InvitationsService {
     const pending = await this.repo.findPendingByEmail(workspaceId, normalizedEmail);
     if (pending) throw new ConflictError("INVITATION_ALREADY_PENDING", "Já existe um convite pendente para este email");
 
-    const token = crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const token = generateToken();
+    const tokenHash = hashToken(token);
     const expiresAt = addHours(new Date(), INVITATION_EXPIRES_HOURS);
 
     const invitation = await this.repo.create({
@@ -82,7 +82,7 @@ export class InvitationsService {
   }
 
   async acceptInvitation(token: string, userId: string) {
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const tokenHash = hashToken(token);
     const invitation = await this.repo.findByTokenHash(tokenHash);
 
     if (!invitation) throw new BadRequestError("Token inválido", "INVALID_TOKEN");
@@ -117,8 +117,8 @@ export class InvitationsService {
       throw new BadRequestError("Apenas convites expirados podem ser reenviados", "INVITATION_NOT_EXPIRED");
     }
 
-    const token = crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const token = generateToken();
+    const tokenHash = hashToken(token);
     const expiresAt = addHours(new Date(), INVITATION_EXPIRES_HOURS);
 
     const updated = await this.repo.resendToken(invitationId, tokenHash, expiresAt);
@@ -135,7 +135,7 @@ export class InvitationsService {
   }
 
   async getInvitationPreview(token: string) {
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const tokenHash = hashToken(token);
     const invitation = await this.repo.findByTokenHashWithDetails(tokenHash);
 
     if (!invitation) throw new BadRequestError("Token inválido", "INVALID_TOKEN");
@@ -156,7 +156,7 @@ export class InvitationsService {
   }
 
   async declineInvitation(token: string, userId: string) {
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const tokenHash = hashToken(token);
     const invitation = await this.repo.findByTokenHash(tokenHash);
 
     if (!invitation) throw new BadRequestError("Token inválido", "INVALID_TOKEN");
