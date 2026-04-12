@@ -7,6 +7,7 @@ import { projectService } from "@web/services/project.service";
 import { workspaceService } from "@web/services/workspace.service";
 import { useAuthStore } from "@web/stores/auth.store";
 import { useWorkspaceStore } from "@web/stores/workspace.store";
+import { useWorkspaceRole } from "@web/hooks/use-workspace-role";
 import { ProjectCard } from "@web/components/features/projects/project-card";
 import { CreateProjectForm } from "@web/components/features/projects/create-project-form";
 import { ConfirmDialog } from "@web/components/ui/confirm-dialog";
@@ -14,20 +15,17 @@ import { Button } from "@web/components/ui/button";
 import { BackLink } from "@web/components/layout/back-link";
 import type { Project } from "@flowmanager/types";
 
-interface MemberWithUser {
-  user_id: string;
-  role: string;
-}
-
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { accessToken, user } = useAuthStore();
+  const { accessToken } = useAuthStore();
   const { currentWorkspace } = useWorkspaceStore();
   const [showForm, setShowForm] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [confirmDeleteWorkspace, setConfirmDeleteWorkspace] = useState(false);
+
+  const { isAdminOrOwner, isOwner } = useWorkspaceRole(workspaceId);
 
   const { data, isLoading } = useQuery({
     queryKey: ["projects", workspaceId],
@@ -41,25 +39,11 @@ export default function WorkspacePage() {
     enabled: !!accessToken && showArchived,
   });
 
-  const { data: membersData } = useQuery({
-    queryKey: ["members", workspaceId],
-    queryFn: () => workspaceService.listMembers(workspaceId, accessToken!),
-    enabled: !!accessToken,
-  });
-
-  const members: MemberWithUser[] =
-    (membersData as { data: { members: MemberWithUser[] } } | undefined)?.data?.members ?? [];
-  const currentMember = members.find((m) => m.user_id === user?.id);
-  const isAdminOrOwner =
-    currentWorkspace?.owner_id === user?.id || currentMember?.role === "ADMIN";
-
   const projects: Project[] =
     (data as { data: { projects: Project[] } } | undefined)?.data?.projects ?? [];
 
   const archivedProjects: Project[] =
     (archivedData as { data: { projects: Project[] } } | undefined)?.data?.projects ?? [];
-
-  const isOwner = currentWorkspace?.owner_id === user?.id;
 
   const deleteWorkspaceMutation = useMutation({
     mutationFn: () => workspaceService.delete(workspaceId, accessToken!),

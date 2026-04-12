@@ -10,7 +10,7 @@ import { labelService } from "@web/services/label.service";
 import { activityService } from "@web/services/activity.service";
 import { workspaceService } from "@web/services/workspace.service";
 import { useAuthStore } from "@web/stores/auth.store";
-import { useWorkspaceStore } from "@web/stores/workspace.store";
+import { useWorkspaceRole } from "@web/hooks/use-workspace-role";
 import { StepList } from "@web/components/features/steps/step-list";
 import { ActivityLogList } from "@web/components/features/activity/activity-log-list";
 import { BackLink } from "@web/components/layout/back-link";
@@ -60,7 +60,7 @@ export default function TaskPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { accessToken, user } = useAuthStore();
-  const { currentWorkspace } = useWorkspaceStore();
+  const { isAdminOrOwner: canManageAssignments } = useWorkspaceRole(workspaceId);
   const [newStep, setNewStep] = useState("");
   const [newComment, setNewComment] = useState("");
   const [newCommentMentions, setNewCommentMentions] = useState<string[]>([]);
@@ -125,9 +125,6 @@ export default function TaskPage() {
   const steps = (stepsData as { data: { steps: (Step & { assignments?: { user_id: string; user: { id: string; name: string; avatar_url: string | null } }[] }) [] } } | undefined)?.data?.steps ?? [];
   const members: MemberWithUser[] = (membersData as { data: { members: MemberWithUser[] } } | undefined)?.data?.members ?? [];
 
-  const currentMember = members.find((m) => m.user_id === user?.id);
-  const canManageAssignments =
-    currentWorkspace?.owner_id === user?.id || currentMember?.role === "ADMIN";
   const activityLogs = (activityData as { data: { logs: { id: string; action: string; created_at: Date; user: { id: string; name: string }; metadata: Record<string, unknown> }[] } } | undefined)?.data?.logs ?? [];
   const rawComments = (commentsData as { data: { comments: Record<string, unknown>[] } } | undefined)?.data?.comments ?? [];
   const comments: CommentWithUser[] = rawComments.map((c) => ({ ...c, user: c.author } as CommentWithUser));

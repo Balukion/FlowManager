@@ -6,9 +6,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "@web/services/task.service";
 import { projectService } from "@web/services/project.service";
 import { labelService } from "@web/services/label.service";
-import { workspaceService } from "@web/services/workspace.service";
 import { useAuthStore } from "@web/stores/auth.store";
-import { useWorkspaceStore } from "@web/stores/workspace.store";
+import { useWorkspaceRole } from "@web/hooks/use-workspace-role";
 import Link from "next/link";
 import { SortableTaskList } from "@web/components/features/tasks/sortable-task-list";
 import { LabelBadge } from "@web/components/features/labels/label-badge";
@@ -28,20 +27,16 @@ interface Label {
   color: string;
 }
 
-interface MemberWithUser {
-  user_id: string;
-  role: string;
-}
-
 export default function ProjectPage() {
   const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { accessToken, user } = useAuthStore();
-  const { currentWorkspace } = useWorkspaceStore();
+  const { accessToken } = useAuthStore();
   const [showForm, setShowForm] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
   const [confirmDeleteProject, setConfirmDeleteProject] = useState(false);
+
+  const { isAdminOrOwner } = useWorkspaceRole(workspaceId);
 
   const { data: projectData } = useQuery({
     queryKey: ["project", projectId],
@@ -57,18 +52,6 @@ export default function ProjectPage() {
     queryFn: () => labelService.list(workspaceId, accessToken!),
     enabled: !!accessToken,
   });
-
-  const { data: membersData } = useQuery({
-    queryKey: ["members", workspaceId],
-    queryFn: () => workspaceService.listMembers(workspaceId, accessToken!),
-    enabled: !!accessToken,
-  });
-
-  const members: MemberWithUser[] =
-    (membersData as { data: { members: MemberWithUser[] } } | undefined)?.data?.members ?? [];
-  const currentMember = members.find((m) => m.user_id === user?.id);
-  const isAdminOrOwner =
-    currentWorkspace?.owner_id === user?.id || currentMember?.role === "ADMIN";
 
   const { data, isLoading } = useQuery({
     queryKey: ["tasks", workspaceId, projectId, selectedLabel],

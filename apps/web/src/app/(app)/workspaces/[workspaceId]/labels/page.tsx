@@ -3,9 +3,8 @@
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { labelService } from "@web/services/label.service";
-import { workspaceService } from "@web/services/workspace.service";
 import { useAuthStore } from "@web/stores/auth.store";
-import { useWorkspaceStore } from "@web/stores/workspace.store";
+import { useWorkspaceRole } from "@web/hooks/use-workspace-role";
 import { LabelManager } from "@web/components/features/labels/label-manager";
 
 interface Label {
@@ -14,16 +13,12 @@ interface Label {
   color: string;
 }
 
-interface MemberWithUser {
-  user_id: string;
-  role: string;
-}
-
 export default function LabelsPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
-  const { accessToken, user } = useAuthStore();
-  const { currentWorkspace } = useWorkspaceStore();
+  const { accessToken } = useAuthStore();
   const queryClient = useQueryClient();
+
+  const { isAdminOrOwner } = useWorkspaceRole(workspaceId);
 
   const { data } = useQuery({
     queryKey: ["labels", workspaceId],
@@ -31,20 +26,8 @@ export default function LabelsPage() {
     enabled: !!accessToken,
   });
 
-  const { data: membersData } = useQuery({
-    queryKey: ["members", workspaceId],
-    queryFn: () => workspaceService.listMembers(workspaceId, accessToken!),
-    enabled: !!accessToken,
-  });
-
   const labels: Label[] =
     (data as { data: { labels: Label[] } } | undefined)?.data?.labels ?? [];
-
-  const members: MemberWithUser[] =
-    (membersData as { data: { members: MemberWithUser[] } } | undefined)?.data?.members ?? [];
-  const currentMember = members.find((m) => m.user_id === user?.id);
-  const isAdminOrOwner =
-    currentWorkspace?.owner_id === user?.id || currentMember?.role === "ADMIN";
 
   function handleUpdate() {
     queryClient.invalidateQueries({ queryKey: ["labels", workspaceId] });

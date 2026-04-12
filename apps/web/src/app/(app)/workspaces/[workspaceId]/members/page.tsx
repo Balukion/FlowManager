@@ -7,6 +7,7 @@ import { workspaceService } from "@web/services/workspace.service";
 import { invitationService } from "@web/services/invitation.service";
 import { useAuthStore } from "@web/stores/auth.store";
 import { useWorkspaceStore } from "@web/stores/workspace.store";
+import { useWorkspaceRole } from "@web/hooks/use-workspace-role";
 import { MemberList } from "@web/components/features/invitations/member-list";
 import { InvitationList } from "@web/components/features/invitations/invitation-list";
 import { InviteMemberForm } from "@web/components/features/invitations/invite-member-form";
@@ -42,6 +43,7 @@ export default function MembersPage() {
   const queryClient = useQueryClient();
   const { accessToken, user } = useAuthStore();
   const { currentWorkspace } = useWorkspaceStore();
+  const { isAdminOrOwner } = useWorkspaceRole(workspaceId);
   const [showForm, setShowForm] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -61,8 +63,6 @@ export default function MembersPage() {
     (membersData as { data: { members: MemberWithUser[] } } | undefined)?.data?.members ?? [];
 
   const currentMember = members.find((m) => m.user_id === user?.id);
-  const isAdminOrOwner =
-    currentWorkspace?.owner_id === user?.id || currentMember?.role === "ADMIN";
 
   const invitations: Invitation[] =
     (invitationsData as { data: { invitations: Invitation[] } } | undefined)?.data?.invitations ?? [];
