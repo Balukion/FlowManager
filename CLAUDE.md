@@ -509,6 +509,32 @@ expect(log?.metadata).toEqual({ from: "TODO", to: "DONE" })
 ```
 Fazer isso para: TASK_STATUS_CHANGED, TASK_PRIORITY_CHANGED, STEP_ASSIGNED, STEP_UNASSIGNED, MEMBER_ROLE_CHANGED, COMMENT_EDITED.
 
+### Bugs e lacunas conhecidas (a corrigir)
+
+**1. Menções exibem UUID em vez do nome**
+Sintoma: comentários com `@{uuid}` aparecem com o UUID bruto no texto.
+Causa: `MentionTextarea` converte nome → UUID ao salvar, mas não há função de render inverso.
+Solução: criar `renderMentions(content, members)` que substitui `@{uuid}` por `@nome` antes de exibir.
+
+**2. Step IN_PROGRESS sem UI (Story 52)**
+Sintoma: não há como marcar um passo como "Em andamento" — checkbox só alterna PENDING ↔ DONE.
+Solução: trocar o checkbox por um select de 3 estados (Pendente / Em andamento / Concluído) em `StepList`.
+
+**3. Notificações in-app ausentes**
+Sintoma: notificações são criadas no banco mas nunca exibidas na UI — só emails.
+Solução: adicionar sino no header com dropdown listando as notificações do usuário (endpoint `GET /notifications`).
+
+**4. Carga de trabalho (Story 95) ignora passos**
+Sintoma: `getMemberWorkload` conta só `assignee_id` de tarefas; passos atribuídos não entram no cálculo.
+Solução: incluir `stepAssignment` no `groupBy` e somar `open_tasks + open_steps`.
+
+**5. Paginação de comentários mistura pais e filhos**
+Sintoma: cursor-based pagination aplica `limit` ao conjunto total (pais + filhos), podendo fatiar threads no meio.
+Solução: paginar apenas comentários raiz (`parent_id IS NULL`) e incluir as respostas de cada um no payload (`replies: Comment[]`).
+
+### Próxima fase — Refactoring, Performance e Jobs Assíncronos
+Ver discussão detalhada de como executar no log de decisões.
+
 ---
 
 ## Checklist pós-implementação

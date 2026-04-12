@@ -3,33 +3,24 @@ import { addHours } from "@flowmanager/shared";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../../errors/index.js";
 import { sendEmail } from "../../lib/resend.js";
 import { env } from "../../config/env.js";
+import { WorkspaceGuard } from "../../lib/workspace-guard.js";
 import type { InvitationsRepository } from "./invitations.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
 
 const INVITATION_EXPIRES_HOURS = 48;
 
 export class InvitationsService {
+  private guard: WorkspaceGuard;
+
   constructor(
     private repo: InvitationsRepository,
     private workspacesRepo: WorkspacesRepository,
-  ) {}
-
-  private async requireAdminOrOwner(workspaceId: string, userId: string) {
-    const workspace = await this.workspacesRepo.findById(workspaceId);
-    if (!workspace) throw new NotFoundError("Workspace não encontrado");
-
-    const member = await this.workspacesRepo.findMember(workspaceId, userId);
-    if (!member) throw new ForbiddenError("Acesso negado ao workspace");
-
-    const isOwner = workspace.owner_id === userId;
-    const isAdmin = member.role === "ADMIN";
-    if (!isOwner && !isAdmin) throw new ForbiddenError("Apenas admins podem realizar esta ação");
-
-    return { workspace };
+  ) {
+    this.guard = new WorkspaceGuard(workspacesRepo);
   }
 
   async createInvitation(workspaceId: string, userId: string, email: string) {
-    const { workspace } = await this.requireAdminOrOwner(workspaceId, userId);
+    const { workspace } = await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const normalizedEmail = email.toLowerCase().trim();
 
@@ -67,7 +58,7 @@ export class InvitationsService {
   }
 
   async listInvitations(workspaceId: string, userId: string) {
-    await this.requireAdminOrOwner(workspaceId, userId);
+    await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const invitations = await this.repo.findByWorkspace(workspaceId);
     // Remove token_hash from each invitation
@@ -80,7 +71,7 @@ export class InvitationsService {
   }
 
   async cancelInvitation(workspaceId: string, invitationId: string, userId: string) {
-    await this.requireAdminOrOwner(workspaceId, userId);
+    await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const invitation = await this.repo.findById(invitationId);
     if (!invitation || invitation.workspace_id !== workspaceId) {
@@ -115,7 +106,7 @@ export class InvitationsService {
   }
 
   async resendInvitation(workspaceId: string, invitationId: string, userId: string) {
-    const { workspace } = await this.requireAdminOrOwner(workspaceId, userId);
+    const { workspace } = await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const invitation = await this.repo.findById(invitationId);
     if (!invitation || invitation.workspace_id !== workspaceId) {

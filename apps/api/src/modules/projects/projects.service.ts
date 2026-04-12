@@ -1,36 +1,17 @@
 import { generateSlug, generateUniqueSlug } from "@flowmanager/shared";
-import { ForbiddenError, NotFoundError } from "../../errors/index.js";
+import { NotFoundError } from "../../errors/index.js";
+import { WorkspaceGuard } from "../../lib/workspace-guard.js";
 import type { ProjectsRepository } from "./projects.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
 
 export class ProjectsService {
+  private guard: WorkspaceGuard;
+
   constructor(
     private repo: ProjectsRepository,
     private workspacesRepo: WorkspacesRepository,
-  ) {}
-
-  private async requireMember(workspaceId: string, userId: string) {
-    const workspace = await this.workspacesRepo.findById(workspaceId);
-    if (!workspace) throw new NotFoundError("Workspace não encontrado");
-
-    const member = await this.workspacesRepo.findMember(workspaceId, userId);
-    if (!member) throw new ForbiddenError("Acesso negado ao workspace");
-
-    return { workspace, member };
-  }
-
-  private async requireAdminOrOwner(workspaceId: string, userId: string) {
-    const { workspace, member } = await this.requireMember(workspaceId, userId);
-    const isOwner = workspace.owner_id === userId;
-    const isAdmin = member.role === "ADMIN";
-    if (!isOwner && !isAdmin) throw new ForbiddenError("Apenas admins podem realizar esta ação");
-    return { workspace, member };
-  }
-
-  private async requireOwner(workspaceId: string, userId: string) {
-    const { workspace } = await this.requireMember(workspaceId, userId);
-    if (workspace.owner_id !== userId) throw new ForbiddenError("Apenas o dono pode realizar esta ação");
-    return { workspace };
+  ) {
+    this.guard = new WorkspaceGuard(workspacesRepo);
   }
 
   async createProject(
@@ -38,7 +19,7 @@ export class ProjectsService {
     userId: string,
     data: { name: string; description?: string | null; color?: string | null; deadline?: string | null },
   ) {
-    await this.requireAdminOrOwner(workspaceId, userId);
+    await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const base = generateSlug(data.name);
     const existingSlugs = await this.repo.findSlugsByBase(workspaceId, base);
@@ -58,19 +39,19 @@ export class ProjectsService {
   }
 
   async listProjects(workspaceId: string, userId: string) {
-    await this.requireMember(workspaceId, userId);
+    await this.guard.requireMember(workspaceId, userId);
     const projects = await this.repo.findByWorkspace(workspaceId, "ACTIVE");
     return { projects };
   }
 
   async listArchivedProjects(workspaceId: string, userId: string) {
-    await this.requireMember(workspaceId, userId);
+    await this.guard.requireMember(workspaceId, userId);
     const projects = await this.repo.findByWorkspace(workspaceId, "ARCHIVED");
     return { projects };
   }
 
   async getProject(workspaceId: string, projectId: string, userId: string) {
-    await this.requireMember(workspaceId, userId);
+    await this.guard.requireMember(workspaceId, userId);
 
     const project = await this.repo.findById(projectId);
     if (!project || project.workspace_id !== workspaceId) throw new NotFoundError("Projeto não encontrado");
@@ -84,7 +65,7 @@ export class ProjectsService {
     userId: string,
     data: { name?: string; description?: string | null; color?: string | null; deadline?: string | null },
   ) {
-    await this.requireAdminOrOwner(workspaceId, userId);
+    await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const project = await this.repo.findById(projectId);
     if (!project || project.workspace_id !== workspaceId) throw new NotFoundError("Projeto não encontrado");
@@ -98,7 +79,7 @@ export class ProjectsService {
   }
 
   async archiveProject(workspaceId: string, projectId: string, userId: string) {
-    await this.requireAdminOrOwner(workspaceId, userId);
+    await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const project = await this.repo.findById(projectId);
     if (!project || project.workspace_id !== workspaceId) throw new NotFoundError("Projeto não encontrado");
@@ -108,7 +89,7 @@ export class ProjectsService {
   }
 
   async unarchiveProject(workspaceId: string, projectId: string, userId: string) {
-    await this.requireAdminOrOwner(workspaceId, userId);
+    await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const project = await this.repo.findById(projectId);
     if (!project || project.workspace_id !== workspaceId) throw new NotFoundError("Projeto não encontrado");
@@ -118,7 +99,7 @@ export class ProjectsService {
   }
 
   async deleteProject(workspaceId: string, projectId: string, userId: string) {
-    await this.requireOwner(workspaceId, userId);
+    await this.guard.requireOwner(workspaceId, userId);
 
     const project = await this.repo.findById(projectId);
     if (!project || project.workspace_id !== workspaceId) throw new NotFoundError("Projeto não encontrado");

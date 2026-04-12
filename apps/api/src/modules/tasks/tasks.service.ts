@@ -1,40 +1,22 @@
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../../errors/index.js";
+import { BadRequestError, ConflictError, NotFoundError } from "../../errors/index.js";
 import { sendEmail } from "../../lib/resend.js";
 import { env } from "../../config/env.js";
+import { WorkspaceGuard } from "../../lib/workspace-guard.js";
 import type { TasksRepository } from "./tasks.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
 import type { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
 import type { NotificationsRepository } from "../notifications/notifications.repository.js";
 
 export class TasksService {
+  private guard: WorkspaceGuard;
+
   constructor(
     private repo: TasksRepository,
     private workspacesRepo: WorkspacesRepository,
     private activityRepo?: ActivityLogsRepository,
     private notifRepo?: NotificationsRepository,
-  ) {}
-
-  private async requireMember(workspaceId: string, userId: string) {
-    const workspace = await this.workspacesRepo.findById(workspaceId);
-    if (!workspace) throw new NotFoundError("Workspace não encontrado");
-
-    const member = await this.workspacesRepo.findMember(workspaceId, userId);
-    if (!member) throw new ForbiddenError("Acesso negado ao workspace");
-
-    return { workspace, member };
-  }
-
-  private async requireAdminOrOwner(workspaceId: string, userId: string) {
-    const { workspace, member } = await this.requireMember(workspaceId, userId);
-    const isOwner = workspace.owner_id === userId;
-    const isAdmin = member.role === "ADMIN";
-    if (!isOwner && !isAdmin) throw new ForbiddenError("Apenas admins podem realizar esta ação");
-    return { workspace };
-  }
-
-  private async requireOwner(workspaceId: string, userId: string) {
-    const { workspace } = await this.requireMember(workspaceId, userId);
-    if (workspace.owner_id !== userId) throw new ForbiddenError("Apenas o dono pode realizar esta ação");
+  ) {
+    this.guard = new WorkspaceGuard(workspacesRepo);
   }
 
   async createTask(
@@ -43,7 +25,7 @@ export class TasksService {
     userId: string,
     data: { title: string; priority: string; description?: string | null; deadline?: string | null },
   ) {
-    await this.requireAdminOrOwner(workspaceId, userId);
+    await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const last = await this.repo.findLastNumber(projectId);
     const number = (last?.number ?? 0) + 1;
@@ -71,13 +53,13 @@ export class TasksService {
     userId: string,
     filters: { status?: string; priority?: string; label_id?: string },
   ) {
-    await this.requireMember(workspaceId, userId);
+    await this.guard.requireMember(workspaceId, userId);
     const tasks = await this.repo.findByProject(projectId, filters);
     return { tasks };
   }
 
   async getTask(workspaceId: string, projectId: string, taskId: string, userId: string) {
-    await this.requireMember(workspaceId, userId);
+    await this.guard.requireMember(workspaceId, userId);
 
     const task = await this.repo.findById(taskId);
     if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");
@@ -93,7 +75,7 @@ export class TasksService {
     userId: string,
     data: { title?: string; description?: string | null; priority?: string; deadline?: string | null },
   ) {
-    await this.requireAdminOrOwner(workspaceId, userId);
+    await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const task = await this.repo.findById(taskId);
     if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");
@@ -131,7 +113,7 @@ export class TasksService {
     userId: string,
     status: string,
   ) {
-    const { workspace } = await this.requireAdminOrOwner(workspaceId, userId);
+    const { workspace } = await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const task = await this.repo.findById(taskId);
     if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");
@@ -197,7 +179,7 @@ export class TasksService {
     userId: string,
     order: string[],
   ) {
-    await this.requireAdminOrOwner(workspaceId, userId);
+    await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     await Promise.all(
       order.map((taskId, index) => this.repo.updateOrder(taskId, index + 1)),
@@ -213,7 +195,7 @@ export class TasksService {
     userId: string,
     targetUserId: string | null,
   ) {
-    await this.requireAdminOrOwner(workspaceId, userId);
+    await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const task = await this.repo.findById(taskId);
     if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");
@@ -228,7 +210,7 @@ export class TasksService {
   }
 
   async watchTask(workspaceId: string, projectId: string, taskId: string, userId: string) {
-    await this.requireMember(workspaceId, userId);
+    await this.guard.requireMember(workspaceId, userId);
 
     const task = await this.repo.findById(taskId);
     if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");
@@ -240,7 +222,7 @@ export class TasksService {
   }
 
   async unwatchTask(workspaceId: string, projectId: string, taskId: string, userId: string) {
-    await this.requireMember(workspaceId, userId);
+    await this.guard.requireMember(workspaceId, userId);
 
     const task = await this.repo.findById(taskId);
     if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");
@@ -249,7 +231,7 @@ export class TasksService {
   }
 
   async deleteTask(workspaceId: string, projectId: string, taskId: string, userId: string) {
-    await this.requireOwner(workspaceId, userId);
+    await this.guard.requireOwner(workspaceId, userId);
 
     const task = await this.repo.findById(taskId);
     if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");

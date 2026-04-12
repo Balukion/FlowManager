@@ -1,6 +1,7 @@
 import { BadRequestError, ForbiddenError, NotFoundError } from "../../errors/index.js";
 import { sendEmail } from "../../lib/resend.js";
 import { env } from "../../config/env.js";
+import { WorkspaceGuard } from "../../lib/workspace-guard.js";
 import type { CommentsRepository } from "./comments.repository.js";
 import type { TasksRepository } from "../tasks/tasks.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
@@ -12,22 +13,16 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
 export class CommentsService {
+  private guard: WorkspaceGuard;
+
   constructor(
     private repo: CommentsRepository,
     private tasksRepo: TasksRepository,
     private workspacesRepo: WorkspacesRepository,
     private activityRepo?: ActivityLogsRepository,
     private notifRepo?: NotificationsRepository,
-  ) {}
-
-  private async requireMember(workspaceId: string, userId: string) {
-    const workspace = await this.workspacesRepo.findById(workspaceId);
-    if (!workspace) throw new NotFoundError("Workspace não encontrado");
-
-    const member = await this.workspacesRepo.findMember(workspaceId, userId);
-    if (!member) throw new ForbiddenError("Acesso negado ao workspace");
-
-    return { workspace, member };
+  ) {
+    this.guard = new WorkspaceGuard(workspacesRepo);
   }
 
   async createComment(
@@ -37,7 +32,7 @@ export class CommentsService {
     userId: string,
     data: { content: string; parent_id?: string | null },
   ) {
-    await this.requireMember(workspaceId, userId);
+    await this.guard.requireMember(workspaceId, userId);
 
     const task = await this.tasksRepo.findById(taskId);
     if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");
@@ -112,7 +107,7 @@ export class CommentsService {
     userId: string,
     query: { limit?: number; cursor?: string },
   ) {
-    await this.requireMember(workspaceId, userId);
+    await this.guard.requireMember(workspaceId, userId);
 
     const task = await this.tasksRepo.findById(taskId);
     if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");
@@ -137,7 +132,7 @@ export class CommentsService {
     userId: string,
     content: string,
   ) {
-    await this.requireMember(workspaceId, userId);
+    await this.guard.requireMember(workspaceId, userId);
 
     const comment = await this.repo.findById(commentId);
     if (!comment || comment.task_id !== taskId) throw new NotFoundError("Comentário não encontrado");
@@ -165,7 +160,7 @@ export class CommentsService {
     commentId: string,
     userId: string,
   ) {
-    const { workspace, member } = await this.requireMember(workspaceId, userId);
+    const { workspace, member } = await this.guard.requireMember(workspaceId, userId);
     const isOwner = workspace.owner_id === userId;
     const isAdmin = member.role === "ADMIN";
 
