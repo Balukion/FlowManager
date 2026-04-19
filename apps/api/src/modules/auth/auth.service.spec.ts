@@ -14,6 +14,8 @@ const mockUserRepo = {
   findById: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
+  findByVerificationToken: vi.fn(),
+  findByPasswordResetToken: vi.fn(),
 };
 
 const mockTokenRepo = {

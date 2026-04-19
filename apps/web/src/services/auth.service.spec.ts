@@ -39,14 +39,6 @@ describe("authService.register", () => {
   });
 });
 
-describe("authService.logout", () => {
-  it("should POST to /auth/logout with token", async () => {
-    vi.mocked(api.post).mockResolvedValue(undefined);
-    await authService.logout("my-token");
-    expect(api.post).toHaveBeenCalledWith("/auth/logout", {}, "my-token");
-  });
-});
-
 describe("authService.refreshToken", () => {
   it("should POST to /auth/refresh with refresh_token", async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { access_token: "new-tok", refresh_token: "new-ref" } });
@@ -71,5 +63,13 @@ describe("authService.resetPassword", () => {
       token: "reset-token-abc",
       password: "nova-senha123",
     });
+  });
+});
+
+describe("authService.verifyEmail", () => {
+  it("should POST to /auth/verify-email with token", async () => {
+    vi.mocked(api.post).mockResolvedValue(undefined);
+    await authService.verifyEmail("verify-token-xyz");
+    expect(api.post).toHaveBeenCalledWith("/auth/verify-email", { token: "verify-token-xyz" });
   });
 });

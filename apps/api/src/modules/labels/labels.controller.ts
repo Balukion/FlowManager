@@ -1,13 +1,11 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { LabelsService } from "./labels.service.js";
-import { LabelsRepository } from "./labels.repository.js";
-import { TasksRepository } from "../tasks/tasks.repository.js";
-import { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
+import { labelsRepository, tasksRepository, workspacesRepository } from "../../lib/registry.js";
 
 const service = new LabelsService(
-  new LabelsRepository(),
-  new TasksRepository(),
-  new WorkspacesRepository(),
+  labelsRepository,
+  tasksRepository,
+  workspacesRepository,
 );
 
 export async function createLabel(

@@ -7,12 +7,16 @@ const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
 const mockDelete = vi.fn();
 
+vi.mock("@web/hooks/use-api-client", () => ({
+  useApiClient: vi.fn(() => ({})),
+}));
+
 vi.mock("@web/services/label.service", () => ({
-  labelService: {
-    create: (...args: unknown[]) => mockCreate(...args),
-    update: (...args: unknown[]) => mockUpdate(...args),
-    delete: (...args: unknown[]) => mockDelete(...args),
-  },
+  labelService: vi.fn(() => ({
+    create: mockCreate,
+    update: mockUpdate,
+    delete: mockDelete,
+  })),
 }));
 
 const existingLabels = [
@@ -22,7 +26,6 @@ const existingLabels = [
 
 const defaultProps = {
   workspaceId: "ws-1",
-  token: "fake-token",
   labels: existingLabels,
   canManage: true,
   onUpdate: vi.fn(),
@@ -54,7 +57,6 @@ describe("LabelManager", () => {
       expect(mockCreate).toHaveBeenCalledWith(
         "ws-1",
         expect.objectContaining({ name: "Urgente" }),
-        "fake-token",
       );
     });
     await waitFor(() => expect(onUpdate).toHaveBeenCalled());
@@ -86,7 +88,7 @@ describe("LabelManager", () => {
 
     await waitFor(() => {
       expect(mockUpdate).toHaveBeenCalledWith(
-        "ws-1", "label-1", expect.objectContaining({ name: "Bug corrigido" }), "fake-token",
+        "ws-1", "label-1", expect.objectContaining({ name: "Bug corrigido" }),
       );
     });
     await waitFor(() => expect(onUpdate).toHaveBeenCalled());
@@ -108,7 +110,7 @@ describe("LabelManager", () => {
     await userEvent.click(screen.getAllByRole("button", { name: /excluir/i })[0]);
 
     await waitFor(() => {
-      expect(mockDelete).toHaveBeenCalledWith("ws-1", "label-1", "fake-token");
+      expect(mockDelete).toHaveBeenCalledWith("ws-1", "label-1");
     });
     await waitFor(() => expect(onUpdate).toHaveBeenCalled());
   });
@@ -127,7 +129,7 @@ describe("LabelManager", () => {
   });
 
   it("hides create form by default (no canManage prop)", () => {
-    render(<LabelManager workspaceId="ws-1" token="t" labels={existingLabels} onUpdate={vi.fn()} />);
+    render(<LabelManager workspaceId="ws-1" labels={existingLabels} onUpdate={vi.fn()} />);
     expect(screen.queryByRole("button", { name: /criar/i })).not.toBeInTheDocument();
   });
 });

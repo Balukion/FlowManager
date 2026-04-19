@@ -1,82 +1,76 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-
-vi.mock("./api.client.js", () => ({
-  api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
-}));
-
-import { api } from "./api.client.js";
 import { projectService } from "./project.service.js";
 
-const TOKEN = "bearer-token";
+const mockClient = { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() };
 const WS_ID = "ws-1";
 const PROJ_ID = "proj-1";
 
 beforeEach(() => vi.clearAllMocks());
 
 describe("projectService.list", () => {
-  it("should GET /workspaces/:wsId/projects with token", async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: { projects: [] } });
-    await projectService.list(WS_ID, TOKEN);
-    expect(api.get).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects`, TOKEN);
+  it("should GET /workspaces/:wsId/projects", async () => {
+    mockClient.get.mockResolvedValue({ data: { projects: [] } });
+    await projectService(mockClient).list(WS_ID);
+    expect(mockClient.get).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects`);
   });
 });
 
 describe("projectService.get", () => {
-  it("should GET /workspaces/:wsId/projects/:id with token", async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: { project: {} } });
-    await projectService.get(WS_ID, PROJ_ID, TOKEN);
-    expect(api.get).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects/${PROJ_ID}`, TOKEN);
+  it("should GET /workspaces/:wsId/projects/:id", async () => {
+    mockClient.get.mockResolvedValue({ data: { project: {} } });
+    await projectService(mockClient).get(WS_ID, PROJ_ID);
+    expect(mockClient.get).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects/${PROJ_ID}`);
   });
 });
 
 describe("projectService.create", () => {
-  it("should POST to /workspaces/:wsId/projects with data and token", async () => {
-    vi.mocked(api.post).mockResolvedValue({ data: { project: {} } });
-    await projectService.create(WS_ID, { name: "Novo Projeto" }, TOKEN);
-    expect(api.post).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects`, { name: "Novo Projeto" }, TOKEN);
+  it("should POST to /workspaces/:wsId/projects with data", async () => {
+    mockClient.post.mockResolvedValue({ data: { project: {} } });
+    await projectService(mockClient).create(WS_ID, { name: "Novo Projeto" });
+    expect(mockClient.post).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects`, { name: "Novo Projeto" });
   });
 });
 
 describe("projectService.update", () => {
-  it("should PATCH /workspaces/:wsId/projects/:id with data and token", async () => {
-    vi.mocked(api.patch).mockResolvedValue({ data: { project: {} } });
-    await projectService.update(WS_ID, PROJ_ID, { name: "Renomeado" }, TOKEN);
-    expect(api.patch).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects/${PROJ_ID}`, { name: "Renomeado" }, TOKEN);
+  it("should PATCH /workspaces/:wsId/projects/:id with data", async () => {
+    mockClient.patch.mockResolvedValue({ data: { project: {} } });
+    await projectService(mockClient).update(WS_ID, PROJ_ID, { name: "Renomeado" });
+    expect(mockClient.patch).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects/${PROJ_ID}`, { name: "Renomeado" });
   });
 });
 
 describe("projectService.delete", () => {
-  it("should DELETE /workspaces/:wsId/projects/:id with token", async () => {
-    vi.mocked(api.delete).mockResolvedValue(undefined);
-    await projectService.delete(WS_ID, PROJ_ID, TOKEN);
-    expect(api.delete).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects/${PROJ_ID}`, TOKEN);
+  it("should DELETE /workspaces/:wsId/projects/:id", async () => {
+    mockClient.delete.mockResolvedValue(undefined);
+    await projectService(mockClient).delete(WS_ID, PROJ_ID);
+    expect(mockClient.delete).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects/${PROJ_ID}`);
   });
 });
 
 describe("projectService.archive", () => {
-  it("should PATCH /workspaces/:wsId/projects/:id/archive with token", async () => {
-    vi.mocked(api.patch).mockResolvedValue({ data: { project: {} } });
-    await projectService.archive(WS_ID, PROJ_ID, TOKEN);
-    expect(api.patch).toHaveBeenCalledWith(
-      `/workspaces/${WS_ID}/projects/${PROJ_ID}/archive`, {}, TOKEN,
+  it("should PATCH /workspaces/:wsId/projects/:id/archive", async () => {
+    mockClient.patch.mockResolvedValue({ data: { project: {} } });
+    await projectService(mockClient).archive(WS_ID, PROJ_ID);
+    expect(mockClient.patch).toHaveBeenCalledWith(
+      `/workspaces/${WS_ID}/projects/${PROJ_ID}/archive`, {},
     );
   });
 });
 
 describe("projectService.unarchive", () => {
-  it("should PATCH /workspaces/:wsId/projects/:id/unarchive with token", async () => {
-    vi.mocked(api.patch).mockResolvedValue({ data: { project: {} } });
-    await projectService.unarchive(WS_ID, PROJ_ID, TOKEN);
-    expect(api.patch).toHaveBeenCalledWith(
-      `/workspaces/${WS_ID}/projects/${PROJ_ID}/unarchive`, {}, TOKEN,
+  it("should PATCH /workspaces/:wsId/projects/:id/unarchive", async () => {
+    mockClient.patch.mockResolvedValue({ data: { project: {} } });
+    await projectService(mockClient).unarchive(WS_ID, PROJ_ID);
+    expect(mockClient.patch).toHaveBeenCalledWith(
+      `/workspaces/${WS_ID}/projects/${PROJ_ID}/unarchive`, {},
     );
   });
 });
 
 describe("projectService.listArchived", () => {
-  it("should GET /workspaces/:wsId/projects/archived with token", async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: { projects: [] } });
-    await projectService.listArchived(WS_ID, TOKEN);
-    expect(api.get).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects/archived`, TOKEN);
+  it("should GET /workspaces/:wsId/projects/archived", async () => {
+    mockClient.get.mockResolvedValue({ data: { projects: [] } });
+    await projectService(mockClient).listArchived(WS_ID);
+    expect(mockClient.get).toHaveBeenCalledWith(`/workspaces/${WS_ID}/projects/archived`);
   });
 });

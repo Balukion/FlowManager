@@ -20,7 +20,7 @@ interface MentionTextareaProps {
 function getActiveQuery(text: string, cursorPos: number): string | null {
   const textBefore = text.slice(0, cursorPos);
   const match = textBefore.match(/@(\S*)$/);
-  return match ? match[1] : null;
+  return match ? (match[1] ?? null) : null;
 }
 
 function extractMentionedUserIds(text: string, members: MentionMember[]): string[] {

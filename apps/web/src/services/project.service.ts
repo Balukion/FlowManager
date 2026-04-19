@@ -1,35 +1,29 @@
-import { api } from "./api.client";
+import type { AuthenticatedClient } from "./api.client";
 
-export const projectService = {
-  list(workspaceId: string, token: string) {
-    return api.get(`/workspaces/${workspaceId}/projects`, token);
-  },
+export function projectService(client: AuthenticatedClient) {
+  return {
+    list: (workspaceId: string) =>
+      client.get(`/workspaces/${workspaceId}/projects`),
 
-  get(workspaceId: string, projectId: string, token: string) {
-    return api.get(`/workspaces/${workspaceId}/projects/${projectId}`, token);
-  },
+    get: (workspaceId: string, projectId: string) =>
+      client.get(`/workspaces/${workspaceId}/projects/${projectId}`),
 
-  create(workspaceId: string, data: { name: string; description?: string | null; color?: string | null }, token: string) {
-    return api.post(`/workspaces/${workspaceId}/projects`, data, token);
-  },
+    create: (workspaceId: string, data: { name: string; description?: string | null; color?: string | null }) =>
+      client.post(`/workspaces/${workspaceId}/projects`, data),
 
-  update(workspaceId: string, projectId: string, data: Record<string, unknown>, token: string) {
-    return api.patch(`/workspaces/${workspaceId}/projects/${projectId}`, data, token);
-  },
+    update: (workspaceId: string, projectId: string, data: Record<string, unknown>) =>
+      client.patch(`/workspaces/${workspaceId}/projects/${projectId}`, data),
 
-  delete(workspaceId: string, projectId: string, token: string) {
-    return api.delete(`/workspaces/${workspaceId}/projects/${projectId}`, token);
-  },
+    delete: (workspaceId: string, projectId: string) =>
+      client.delete(`/workspaces/${workspaceId}/projects/${projectId}`),
 
-  archive(workspaceId: string, projectId: string, token: string) {
-    return api.patch(`/workspaces/${workspaceId}/projects/${projectId}/archive`, {}, token);
-  },
+    archive: (workspaceId: string, projectId: string) =>
+      client.patch(`/workspaces/${workspaceId}/projects/${projectId}/archive`, {}),
 
-  unarchive(workspaceId: string, projectId: string, token: string) {
-    return api.patch(`/workspaces/${workspaceId}/projects/${projectId}/unarchive`, {}, token);
-  },
+    unarchive: (workspaceId: string, projectId: string) =>
+      client.patch(`/workspaces/${workspaceId}/projects/${projectId}/unarchive`, {}),
 
-  listArchived(workspaceId: string, token: string) {
-    return api.get(`/workspaces/${workspaceId}/projects/archived`, token);
-  },
-};
+    listArchived: (workspaceId: string) =>
+      client.get(`/workspaces/${workspaceId}/projects/archived`),
+  };
+}

@@ -8,12 +8,13 @@ import { workspaceService } from "@web/services/workspace.service";
 import { useAuthStore } from "@web/stores/auth.store";
 import { useWorkspaceStore } from "@web/stores/workspace.store";
 import { useWorkspaceRole } from "@web/hooks/use-workspace-role";
+import { useApiClient } from "@web/hooks/use-api-client";
 import { ProjectCard } from "@web/components/features/projects/project-card";
 import { CreateProjectForm } from "@web/components/features/projects/create-project-form";
 import { ConfirmDialog } from "@web/components/ui/confirm-dialog";
 import { Button } from "@web/components/ui/button";
 import { BackLink } from "@web/components/layout/back-link";
-import type { Project } from "@flowmanager/types";
+import type { Project, ApiResponse } from "@flowmanager/types";
 
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -21,6 +22,7 @@ export default function WorkspacePage() {
   const queryClient = useQueryClient();
   const { accessToken } = useAuthStore();
   const { currentWorkspace } = useWorkspaceStore();
+  const client = useApiClient();
   const [showForm, setShowForm] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [confirmDeleteWorkspace, setConfirmDeleteWorkspace] = useState(false);
@@ -29,24 +31,24 @@ export default function WorkspacePage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["projects", workspaceId],
-    queryFn: () => projectService.list(workspaceId, accessToken!),
+    queryFn: () => projectService(client).list(workspaceId),
     enabled: !!accessToken,
   });
 
   const { data: archivedData } = useQuery({
     queryKey: ["projects", workspaceId, "archived"],
-    queryFn: () => projectService.listArchived(workspaceId, accessToken!),
+    queryFn: () => projectService(client).listArchived(workspaceId),
     enabled: !!accessToken && showArchived,
   });
 
   const projects: Project[] =
-    (data as { data: { projects: Project[] } } | undefined)?.data?.projects ?? [];
+    (data as ApiResponse<{ projects: Project[] }> | undefined)?.data?.projects ?? [];
 
   const archivedProjects: Project[] =
-    (archivedData as { data: { projects: Project[] } } | undefined)?.data?.projects ?? [];
+    (archivedData as ApiResponse<{ projects: Project[] }> | undefined)?.data?.projects ?? [];
 
   const deleteWorkspaceMutation = useMutation({
-    mutationFn: () => workspaceService.delete(workspaceId, accessToken!),
+    mutationFn: () => workspaceService(client).delete(workspaceId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workspaces"] });
       router.push("/workspaces");
@@ -55,7 +57,7 @@ export default function WorkspacePage() {
 
   const createMutation = useMutation({
     mutationFn: (formData: { name: string; description?: string }) =>
-      projectService.create(workspaceId, formData, accessToken!),
+      projectService(client).create(workspaceId, formData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects", workspaceId] });
       setShowForm(false);

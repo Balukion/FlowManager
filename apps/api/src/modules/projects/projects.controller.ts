@@ -1,9 +1,8 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { ProjectsService } from "./projects.service.js";
-import { ProjectsRepository } from "./projects.repository.js";
-import { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
+import { projectsRepository, workspacesRepository } from "../../lib/registry.js";
 
-const service = new ProjectsService(new ProjectsRepository(), new WorkspacesRepository());
+const service = new ProjectsService(projectsRepository, workspacesRepository);
 
 type WorkspaceParams = { id: string };
 type ProjectParams = { id: string; projectId: string };

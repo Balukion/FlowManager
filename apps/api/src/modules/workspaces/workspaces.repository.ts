@@ -43,6 +43,12 @@ export class WorkspacesRepository {
 
   // Members
 
+  async findMemberByEmail(workspaceId: string, email: string) {
+    return prisma.user.findFirst({
+      where: { email, workspace_members: { some: { workspace_id: workspaceId } } },
+    });
+  }
+
   async findMember(workspaceId: string, userId: string) {
     return prisma.workspaceMember.findUnique({
       where: { workspace_id_user_id: { workspace_id: workspaceId, user_id: userId } },
@@ -89,47 +95,10 @@ export class WorkspacesRepository {
     return prisma.invitation.deleteMany({ where: { workspace_id: workspaceId } });
   }
 
-  // Cascade soft delete
-
-  async softDeleteProjectsByWorkspace(workspaceId: string) {
-    return prisma.project.updateMany({
-      where: { workspace_id: workspaceId, deleted_at: null },
-      data: { deleted_at: new Date() },
+  async deleteExpiredWorkspaces(cutoff: Date): Promise<number> {
+    const result = await prisma.workspace.deleteMany({
+      where: { deleted_at: { not: null, lt: cutoff } },
     });
-  }
-
-  async softDeleteTasksByWorkspace(workspaceId: string) {
-    return prisma.task.updateMany({
-      where: { project: { workspace_id: workspaceId }, deleted_at: null },
-      data: { deleted_at: new Date() },
-    });
-  }
-
-  async softDeleteStepsByWorkspace(workspaceId: string) {
-    return prisma.step.updateMany({
-      where: { task: { project: { workspace_id: workspaceId } }, deleted_at: null },
-      data: { deleted_at: new Date() },
-    });
-  }
-
-  async deleteWithCascade(workspaceId: string) {
-    const now = new Date();
-    await prisma.$transaction([
-      prisma.step.updateMany({
-        where: { task: { project: { workspace_id: workspaceId } }, deleted_at: null },
-        data: { deleted_at: now },
-      }),
-      prisma.task.updateMany({
-        where: { project: { workspace_id: workspaceId }, deleted_at: null },
-        data: { deleted_at: now },
-      }),
-      prisma.project.updateMany({
-        where: { workspace_id: workspaceId, deleted_at: null },
-        data: { deleted_at: now },
-      }),
-      prisma.workspaceMember.deleteMany({ where: { workspace_id: workspaceId } }),
-      prisma.invitation.deleteMany({ where: { workspace_id: workspaceId } }),
-      prisma.workspace.update({ where: { id: workspaceId }, data: { deleted_at: now } }),
-    ]);
+    return result.count;
   }
 }

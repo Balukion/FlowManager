@@ -1,9 +1,20 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { WorkspacesService } from "./workspaces.service.js";
-import { WorkspacesRepository } from "./workspaces.repository.js";
-import { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
+import {
+  workspacesRepository,
+  activityLogsRepository,
+  projectsRepository,
+  tasksRepository,
+  stepsRepository,
+} from "../../lib/registry.js";
 
-const service = new WorkspacesService(new WorkspacesRepository(), new ActivityLogsRepository());
+const service = new WorkspacesService(
+  workspacesRepository,
+  activityLogsRepository,
+  projectsRepository,
+  tasksRepository,
+  stepsRepository,
+);
 
 export async function createWorkspace(
   request: FastifyRequest<{ Body: { name: string; description?: string | null; color?: string | null } }>,

@@ -1,4 +1,5 @@
 import type { Role } from "../enums/role.js";
+import type { User } from "./user.js";
 
 export interface Workspace {
   id: string;
@@ -22,4 +23,8 @@ export interface WorkspaceMember {
   position: number | null;
   last_seen_at: Date | null;
   joined_at: Date;
+}
+
+export interface MemberWithUser extends WorkspaceMember {
+  user: Pick<User, "id" | "name" | "email" | "avatar_url">;
 }

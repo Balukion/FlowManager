@@ -1,36 +1,17 @@
-import { prisma } from "../lib/prisma.js";
 import type { Job } from "./job.interface.js";
+import type { WorkspacesRepository } from "../modules/workspaces/workspaces.repository.js";
+import type { NotificationsRepository } from "../modules/notifications/notifications.repository.js";
+import type { TokenRepository } from "../modules/auth/auth.repository.js";
 
 type Logger = { info: (data: object, msg: string) => void; error: (err: unknown, msg: string) => void };
-
-export class CleanupRepository {
-  async deleteExpiredWorkspaces(cutoff: Date): Promise<number> {
-    const result = await prisma.workspace.deleteMany({
-      where: { deleted_at: { not: null, lt: cutoff } },
-    });
-    return result.count;
-  }
-
-  async deleteOldNotifications(cutoff: Date): Promise<number> {
-    const result = await prisma.notification.deleteMany({
-      where: { created_at: { lt: cutoff } },
-    });
-    return result.count;
-  }
-
-  async deleteExpiredRevokedTokens(): Promise<number> {
-    const result = await prisma.revokedToken.deleteMany({
-      where: { expires_at: { lt: new Date() } },
-    });
-    return result.count;
-  }
-}
 
 export class CleanupJob implements Job {
   readonly name = "cleanup";
 
   constructor(
-    private repo: CleanupRepository,
+    private workspacesRepo: Pick<WorkspacesRepository, "deleteExpiredWorkspaces">,
+    private notificationsRepo: Pick<NotificationsRepository, "deleteOldNotifications">,
+    private tokenRepo: Pick<TokenRepository, "deleteExpiredRevokedTokens">,
     private logger: Logger,
     readonly cron: string,
   ) {}
@@ -40,9 +21,9 @@ export class CleanupJob implements Job {
     const cutoff30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const cutoff90d = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
-    const workspaces = await this.repo.deleteExpiredWorkspaces(cutoff30d);
-    const notifications = await this.repo.deleteOldNotifications(cutoff90d);
-    const revokedTokens = await this.repo.deleteExpiredRevokedTokens();
+    const workspaces = await this.workspacesRepo.deleteExpiredWorkspaces(cutoff30d);
+    const notifications = await this.notificationsRepo.deleteOldNotifications(cutoff90d);
+    const revokedTokens = await this.tokenRepo.deleteExpiredRevokedTokens();
 
     this.logger.info({ workspaces, notifications, revokedTokens }, "Cleanup job completed");
   }

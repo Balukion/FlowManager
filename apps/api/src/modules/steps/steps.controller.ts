@@ -1,21 +1,23 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { type StepStatus } from "@prisma/client";
 import { StepsService } from "./steps.service.js";
-import { StepsRepository } from "./steps.repository.js";
-import { TasksRepository } from "../tasks/tasks.repository.js";
 import { TasksService } from "../tasks/tasks.service.js";
-import { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
-import { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
-import { NotificationsRepository } from "../notifications/notifications.repository.js";
+import {
+  stepsRepository,
+  tasksRepository,
+  workspacesRepository,
+  activityLogsRepository,
+  notificationsRepository,
+} from "../../lib/registry.js";
 
-const activityRepo = new ActivityLogsRepository();
+const tasksService = new TasksService(tasksRepository, workspacesRepository, activityLogsRepository, notificationsRepository);
 const service = new StepsService(
-  new StepsRepository(),
-  new TasksRepository(),
-  new WorkspacesRepository(),
-  new TasksService(new TasksRepository(), new WorkspacesRepository()),
-  activityRepo,
-  new NotificationsRepository(),
+  stepsRepository,
+  tasksRepository,
+  workspacesRepository,
+  tasksService,
+  activityLogsRepository,
+  notificationsRepository,
 );
 
 type StepParams = { id: string; projectId: string; taskId: string; stepId: string };

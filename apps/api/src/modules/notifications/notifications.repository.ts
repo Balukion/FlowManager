@@ -50,4 +50,34 @@ export class NotificationsRepository {
   async delete(id: string) {
     return prisma.notification.delete({ where: { id } });
   }
+
+  async findPendingRetry(maxAttempts: number) {
+    return prisma.notification.findMany({
+      where: {
+        sent_at: null,
+        attempt_count: { lt: maxAttempts },
+      },
+      include: {
+        user: { select: { email: true, name: true } },
+      },
+    });
+  }
+
+  async incrementAttempt(id: string, errorMessage: string) {
+    return prisma.notification.update({
+      where: { id },
+      data: {
+        attempt_count: { increment: 1 },
+        failed_at: new Date(),
+        error_message: errorMessage,
+      },
+    });
+  }
+
+  async deleteOldNotifications(cutoff: Date): Promise<number> {
+    const result = await prisma.notification.deleteMany({
+      where: { created_at: { lt: cutoff } },
+    });
+    return result.count;
+  }
 }

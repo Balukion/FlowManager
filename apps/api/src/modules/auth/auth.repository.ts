@@ -44,6 +44,18 @@ export class UserRepository {
   async update(id: string, data: UpdateUserData) {
     return prisma.user.update({ where: { id }, data });
   }
+
+  async findByVerificationToken(tokenHash: string) {
+    return prisma.user.findFirst({
+      where: { email_verification_token: tokenHash, deleted_at: null },
+    });
+  }
+
+  async findByPasswordResetToken(tokenHash: string) {
+    return prisma.user.findFirst({
+      where: { password_reset_token: tokenHash, deleted_at: null },
+    });
+  }
 }
 
 export class TokenRepository {
@@ -72,5 +84,12 @@ export class TokenRepository {
       where: { token_hash: tokenHash },
     });
     return !!token;
+  }
+
+  async deleteExpiredRevokedTokens(): Promise<number> {
+    const result = await prisma.revokedToken.deleteMany({
+      where: { expires_at: { lt: new Date() } },
+    });
+    return result.count;
   }
 }

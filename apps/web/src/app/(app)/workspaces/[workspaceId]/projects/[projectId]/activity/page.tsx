@@ -5,8 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { activityService } from "@web/services/activity.service";
 import { projectService } from "@web/services/project.service";
 import { useAuthStore } from "@web/stores/auth.store";
+import { useApiClient } from "@web/hooks/use-api-client";
 import { ActivityLogList } from "@web/components/features/activity/activity-log-list";
 import { BackLink } from "@web/components/layout/back-link";
+import type { ApiResponse } from "@flowmanager/types";
 
 interface ActivityLog {
   id: string;
@@ -19,10 +21,11 @@ interface ActivityLog {
 export default function ProjectActivityPage() {
   const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
   const { accessToken } = useAuthStore();
+  const client = useApiClient();
 
   const { data: projectData } = useQuery({
     queryKey: ["project", projectId],
-    queryFn: () => projectService.get(workspaceId, projectId, accessToken!),
+    queryFn: () => projectService(client).get(workspaceId, projectId),
     enabled: !!accessToken,
   });
 
@@ -30,12 +33,12 @@ export default function ProjectActivityPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["activity", "project", projectId],
-    queryFn: () => activityService.listByProject(workspaceId, projectId, accessToken!),
+    queryFn: () => activityService(client).listByProject(workspaceId, projectId),
     enabled: !!accessToken,
   });
 
   const logs: ActivityLog[] =
-    (data as { data: { logs: ActivityLog[] } } | undefined)?.data?.logs ?? [];
+    (data as ApiResponse<{ logs: ActivityLog[] }> | undefined)?.data?.logs ?? [];
 
   return (
     <div className="max-w-2xl space-y-6">

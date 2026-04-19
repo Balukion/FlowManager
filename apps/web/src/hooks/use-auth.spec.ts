@@ -7,8 +7,12 @@ vi.mock("../services/auth.service.js", () => ({
   authService: {
     login: vi.fn(),
     register: vi.fn(),
-    logout: vi.fn(),
   },
+}));
+
+const mockPost = vi.fn();
+vi.mock("../services/api.client.js", () => ({
+  createAuthenticatedClient: vi.fn(() => ({ post: mockPost })),
 }));
 
 const mockClear = vi.fn();
@@ -58,16 +62,16 @@ describe("useAuth", () => {
     expect(useAuthStore.getState().accessToken).toBe("new-tok");
   });
 
-  it("logout() should call authService.logout and clear the store", async () => {
+  it("logout() should POST to /auth/logout and clear the store", async () => {
     useAuthStore.setState({ user: mockUser, accessToken: "tok" });
-    vi.mocked(authService.logout).mockResolvedValue(undefined as any);
+    mockPost.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useAuth());
     await act(async () => {
       await result.current.logout();
     });
 
-    expect(authService.logout).toHaveBeenCalled();
+    expect(mockPost).toHaveBeenCalledWith("/auth/logout", {});
     expect(useAuthStore.getState().user).toBeNull();
     expect(useAuthStore.getState().accessToken).toBeNull();
   });
@@ -76,7 +80,7 @@ describe("useAuth", () => {
     const mockWorkspace = { id: "ws-1", name: "Workspace A" } as any;
     useAuthStore.setState({ user: mockUser, accessToken: "tok" });
     useWorkspaceStore.setState({ currentWorkspace: mockWorkspace });
-    vi.mocked(authService.logout).mockResolvedValue(undefined as any);
+    mockPost.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useAuth());
     await act(async () => {

@@ -20,7 +20,6 @@ vi.mock("../../lib/resend.js", () => ({
 // ─── Mocks dos repositórios ───────────────────────────────────────────────────
 
 const mockRepo = {
-  findMemberByEmail: vi.fn(),
   findPendingByEmail: vi.fn(),
   create: vi.fn(),
   findById: vi.fn(),
@@ -28,7 +27,6 @@ const mockRepo = {
   delete: vi.fn(),
   findByTokenHash: vi.fn(),
   findByTokenHashWithDetails: vi.fn(),
-  findUserById: vi.fn(),
   createWorkspaceMember: vi.fn(),
   updateStatus: vi.fn(),
   resendToken: vi.fn(),
@@ -37,13 +35,18 @@ const mockRepo = {
 const mockWorkspacesRepo = {
   findById: vi.fn(),
   findMember: vi.fn(),
+  findMemberByEmail: vi.fn(),
+};
+
+const mockUsersRepo = {
+  findById: vi.fn(),
 };
 
 let service: InvitationsService;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  service = new InvitationsService(mockRepo as any, mockWorkspacesRepo as any);
+  service = new InvitationsService(mockRepo as any, mockWorkspacesRepo as any, mockUsersRepo as any);
 });
 
 // ─── createInvitation ─────────────────────────────────────────────────────────
@@ -56,7 +59,7 @@ describe("createInvitation", () => {
     const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID });
     mockWorkspacesRepo.findById.mockResolvedValue(workspace);
     mockWorkspacesRepo.findMember.mockResolvedValue({ role: "ADMIN" });
-    mockRepo.findMemberByEmail.mockResolvedValue(null);
+    mockWorkspacesRepo.findMemberByEmail.mockResolvedValue(null);
     mockRepo.findPendingByEmail.mockResolvedValue(null);
   });
 
@@ -65,7 +68,7 @@ describe("createInvitation", () => {
 
     await service.createInvitation(WORKSPACE_ID, USER_ID, "CONVIDADO@TEST.COM");
 
-    expect(mockRepo.findMemberByEmail).toHaveBeenCalledWith(WORKSPACE_ID, "convidado@test.com");
+    expect(mockWorkspacesRepo.findMemberByEmail).toHaveBeenCalledWith(WORKSPACE_ID, "convidado@test.com");
     expect(mockRepo.findPendingByEmail).toHaveBeenCalledWith(WORKSPACE_ID, "convidado@test.com");
   });
 
@@ -90,7 +93,7 @@ describe("createInvitation", () => {
   });
 
   it("deve lançar ConflictError ALREADY_A_MEMBER se o usuário já é membro", async () => {
-    mockRepo.findMemberByEmail.mockResolvedValue({ id: "membro-existente" });
+    mockWorkspacesRepo.findMemberByEmail.mockResolvedValue({ id: "membro-existente" });
 
     await expect(
       service.createInvitation(WORKSPACE_ID, USER_ID, "membro@test.com"),
@@ -106,7 +109,7 @@ describe("createInvitation", () => {
   });
 
   it("deve lançar ConflictError e não rejeitar quando o usuário já é membro — verifica antes de ConflictError pendente", async () => {
-    mockRepo.findMemberByEmail.mockResolvedValue({ id: "membro-existente" });
+    mockWorkspacesRepo.findMemberByEmail.mockResolvedValue({ id: "membro-existente" });
 
     await expect(
       service.createInvitation(WORKSPACE_ID, USER_ID, "qualquer@test.com"),
@@ -151,7 +154,7 @@ describe("acceptInvitation", () => {
     const convite = makeInvitation({ email: "certo@test.com", status: "PENDING" });
     const user = makeUser({ email: "errado@test.com" });
     mockRepo.findByTokenHash.mockResolvedValue(convite);
-    mockRepo.findUserById.mockResolvedValue(user);
+    mockUsersRepo.findById.mockResolvedValue(user);
 
     await expect(
       service.acceptInvitation("token_valido", user.id),
@@ -162,7 +165,7 @@ describe("acceptInvitation", () => {
     const convite = makeInvitation({ email: "certo@test.com", status: "PENDING", role: "MEMBER" });
     const user = makeUser({ email: "certo@test.com" });
     mockRepo.findByTokenHash.mockResolvedValue(convite);
-    mockRepo.findUserById.mockResolvedValue(user);
+    mockUsersRepo.findById.mockResolvedValue(user);
     mockRepo.createWorkspaceMember.mockResolvedValue(undefined);
     mockRepo.updateStatus.mockResolvedValue(undefined);
 
@@ -200,7 +203,7 @@ describe("declineInvitation", () => {
     const convite = makeInvitation({ email: "certo@test.com", status: "PENDING" });
     const user = makeUser({ email: "errado@test.com" });
     mockRepo.findByTokenHash.mockResolvedValue(convite);
-    mockRepo.findUserById.mockResolvedValue(user);
+    mockUsersRepo.findById.mockResolvedValue(user);
 
     await expect(
       service.declineInvitation("token_valido", user.id),
@@ -211,7 +214,7 @@ describe("declineInvitation", () => {
     const convite = makeInvitation({ email: "certo@test.com", status: "PENDING" });
     const user = makeUser({ email: "certo@test.com" });
     mockRepo.findByTokenHash.mockResolvedValue(convite);
-    mockRepo.findUserById.mockResolvedValue(user);
+    mockUsersRepo.findById.mockResolvedValue(user);
     mockRepo.updateStatus.mockResolvedValue(undefined);
 
     await service.declineInvitation("token_valido", user.id);

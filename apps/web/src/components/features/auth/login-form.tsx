@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@web/hooks/use-auth";
+import { getErrorMessage } from "@shared/utils";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
@@ -34,8 +35,7 @@ export function LoginForm() {
       await login(email, password);
       router.push("/dashboard");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : (err as { message?: string })?.message ?? "Algo deu errado";
-      setError(message);
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

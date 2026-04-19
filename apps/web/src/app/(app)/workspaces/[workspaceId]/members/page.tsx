@@ -8,21 +8,12 @@ import { invitationService } from "@web/services/invitation.service";
 import { useAuthStore } from "@web/stores/auth.store";
 import { useWorkspaceStore } from "@web/stores/workspace.store";
 import { useWorkspaceRole } from "@web/hooks/use-workspace-role";
+import { useApiClient } from "@web/hooks/use-api-client";
 import { MemberList } from "@web/components/features/invitations/member-list";
 import { InvitationList } from "@web/components/features/invitations/invitation-list";
 import { InviteMemberForm } from "@web/components/features/invitations/invite-member-form";
 import { Button } from "@web/components/ui/button";
-
-interface MemberWithUser {
-  id: string;
-  workspace_id: string;
-  user_id: string;
-  role: string;
-  position: number | null;
-  last_seen_at: Date | null;
-  joined_at: Date;
-  user: { id: string; name: string; email: string; avatar_url: string | null };
-}
+import type { MemberWithUser, ApiResponse } from "@flowmanager/types";
 
 interface Invitation {
   id: string;
@@ -41,34 +32,35 @@ interface Invitation {
 export default function MembersPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const queryClient = useQueryClient();
-  const { accessToken, user } = useAuthStore();
+  const { user } = useAuthStore();
   const { currentWorkspace } = useWorkspaceStore();
   const { isAdminOrOwner } = useWorkspaceRole(workspaceId);
+  const client = useApiClient();
   const [showForm, setShowForm] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const { data: membersData } = useQuery({
     queryKey: ["members", workspaceId],
-    queryFn: () => workspaceService.listMembers(workspaceId, accessToken!),
-    enabled: !!accessToken,
+    queryFn: () => workspaceService(client).listMembers(workspaceId),
+    enabled: !!client,
   });
 
   const { data: invitationsData } = useQuery({
     queryKey: ["invitations", workspaceId],
-    queryFn: () => invitationService.list(workspaceId, accessToken!),
-    enabled: !!accessToken,
+    queryFn: () => invitationService(client).list(workspaceId),
+    enabled: !!client,
   });
 
   const members: MemberWithUser[] =
-    (membersData as { data: { members: MemberWithUser[] } } | undefined)?.data?.members ?? [];
+    (membersData as ApiResponse<{ members: MemberWithUser[] }> | undefined)?.data?.members ?? [];
 
   const currentMember = members.find((m) => m.user_id === user?.id);
 
   const invitations: Invitation[] =
-    (invitationsData as { data: { invitations: Invitation[] } } | undefined)?.data?.invitations ?? [];
+    (invitationsData as ApiResponse<{ invitations: Invitation[] }> | undefined)?.data?.invitations ?? [];
 
   const inviteMutation = useMutation({
-    mutationFn: (email: string) => invitationService.create(workspaceId, email, accessToken!),
+    mutationFn: (email: string) => invitationService(client).create(workspaceId, email),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invitations", workspaceId] });
       setShowForm(false);
@@ -83,13 +75,13 @@ export default function MembersPage() {
 
   const removeMutation = useMutation({
     mutationFn: (userId: string) =>
-      workspaceService.removeMember(workspaceId, userId, accessToken!),
+      workspaceService(client).removeMember(workspaceId, userId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["members", workspaceId] }),
   });
 
   const changeRoleMutation = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: string }) =>
-      workspaceService.updateMemberRole(workspaceId, userId, role, accessToken!),
+      workspaceService(client).updateMemberRole(workspaceId, userId, role),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["members", workspaceId] }),
     onError: (err: { message?: string }) => {
       setFeedback(err.message ?? "Erro ao alterar papel");
@@ -99,7 +91,7 @@ export default function MembersPage() {
 
   const cancelInviteMutation = useMutation({
     mutationFn: (invitationId: string) =>
-      invitationService.cancel(workspaceId, invitationId, accessToken!),
+      invitationService(client).cancel(workspaceId, invitationId),
     onSuccess: () => queryClient.refetchQueries({ queryKey: ["invitations", workspaceId] }),
   });
 

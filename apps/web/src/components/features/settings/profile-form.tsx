@@ -5,6 +5,7 @@ import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { TIMEZONES } from "@shared/constants";
+import { getErrorMessage } from "@shared/utils";
 
 interface ProfileFormProps {
   initialName: string;
@@ -34,7 +35,7 @@ export function ProfileForm({ initialName, initialTimezone, onSubmit }: ProfileF
       await onSubmit({ name: name.trim(), timezone });
       setSuccess(true);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Algo deu errado");
+      setSubmitError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

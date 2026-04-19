@@ -1,64 +1,74 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-
-vi.mock("./api.client.js", () => ({
-  api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
-}));
-
-import { api } from "./api.client.js";
 import { workspaceService } from "./workspace.service.js";
 
-const TOKEN = "bearer-token";
+const mockClient = { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() };
+const WS_ID = "ws-1";
 
 beforeEach(() => vi.clearAllMocks());
 
 describe("workspaceService.list", () => {
-  it("should GET /workspaces with token", async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: { workspaces: [] } });
-    await workspaceService.list(TOKEN);
-    expect(api.get).toHaveBeenCalledWith("/workspaces", TOKEN);
+  it("should GET /workspaces", async () => {
+    mockClient.get.mockResolvedValue({ data: { workspaces: [] } });
+    await workspaceService(mockClient).list();
+    expect(mockClient.get).toHaveBeenCalledWith("/workspaces");
   });
 });
 
 describe("workspaceService.get", () => {
-  it("should GET /workspaces/:id with token", async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: { workspace: {} } });
-    await workspaceService.get("ws-1", TOKEN);
-    expect(api.get).toHaveBeenCalledWith("/workspaces/ws-1", TOKEN);
+  it("should GET /workspaces/:id", async () => {
+    mockClient.get.mockResolvedValue({ data: { workspace: {} } });
+    await workspaceService(mockClient).get(WS_ID);
+    expect(mockClient.get).toHaveBeenCalledWith(`/workspaces/${WS_ID}`);
   });
 });
 
 describe("workspaceService.create", () => {
-  it("should POST /workspaces with data and token", async () => {
-    vi.mocked(api.post).mockResolvedValue({ data: { workspace: {} } });
-    await workspaceService.create({ name: "Nova Empresa" }, TOKEN);
-    expect(api.post).toHaveBeenCalledWith("/workspaces", { name: "Nova Empresa" }, TOKEN);
+  it("should POST /workspaces with data", async () => {
+    mockClient.post.mockResolvedValue({ data: { workspace: {} } });
+    await workspaceService(mockClient).create({ name: "Nova Empresa" });
+    expect(mockClient.post).toHaveBeenCalledWith("/workspaces", { name: "Nova Empresa" });
   });
 });
 
 describe("workspaceService.update", () => {
-  it("should PATCH /workspaces/:id with data and token", async () => {
-    vi.mocked(api.patch).mockResolvedValue({ data: { workspace: {} } });
-    await workspaceService.update("ws-1", { name: "Novo Nome" }, TOKEN);
-    expect(api.patch).toHaveBeenCalledWith("/workspaces/ws-1", { name: "Novo Nome" }, TOKEN);
+  it("should PATCH /workspaces/:id with data", async () => {
+    mockClient.patch.mockResolvedValue({ data: { workspace: {} } });
+    await workspaceService(mockClient).update(WS_ID, { name: "Novo Nome" });
+    expect(mockClient.patch).toHaveBeenCalledWith(`/workspaces/${WS_ID}`, { name: "Novo Nome" });
   });
 });
 
 describe("workspaceService.delete", () => {
-  it("should DELETE /workspaces/:id with token", async () => {
-    vi.mocked(api.delete).mockResolvedValue(undefined);
-    await workspaceService.delete("ws-1", TOKEN);
-    expect(api.delete).toHaveBeenCalledWith("/workspaces/ws-1", TOKEN);
+  it("should DELETE /workspaces/:id", async () => {
+    mockClient.delete.mockResolvedValue(undefined);
+    await workspaceService(mockClient).delete(WS_ID);
+    expect(mockClient.delete).toHaveBeenCalledWith(`/workspaces/${WS_ID}`);
   });
 });
 
 describe("workspaceService.updateLogo", () => {
-  it("should PATCH /workspaces/:id/logo with logo_url and token", async () => {
-    vi.mocked(api.patch).mockResolvedValue({ data: { workspace: {} } });
-    await workspaceService.updateLogo("ws-1", "https://s3.example.com/logo.png", TOKEN);
-    expect(api.patch).toHaveBeenCalledWith(
-      "/workspaces/ws-1/logo",
+  it("should PATCH /workspaces/:id/logo with logo_url", async () => {
+    mockClient.patch.mockResolvedValue({ data: { workspace: {} } });
+    await workspaceService(mockClient).updateLogo(WS_ID, "https://s3.example.com/logo.png");
+    expect(mockClient.patch).toHaveBeenCalledWith(
+      `/workspaces/${WS_ID}/logo`,
       { logo_url: "https://s3.example.com/logo.png" },
-      TOKEN,
     );
+  });
+});
+
+describe("workspaceService.listMembers", () => {
+  it("should GET /workspaces/:id/members", async () => {
+    mockClient.get.mockResolvedValue({ data: { members: [] } });
+    await workspaceService(mockClient).listMembers(WS_ID);
+    expect(mockClient.get).toHaveBeenCalledWith(`/workspaces/${WS_ID}/members`);
+  });
+});
+
+describe("workspaceService.getMe", () => {
+  it("should GET /workspaces/:id/me", async () => {
+    mockClient.get.mockResolvedValue({ data: { member: {} } });
+    await workspaceService(mockClient).getMe(WS_ID);
+    expect(mockClient.get).toHaveBeenCalledWith(`/workspaces/${WS_ID}/me`);
   });
 });

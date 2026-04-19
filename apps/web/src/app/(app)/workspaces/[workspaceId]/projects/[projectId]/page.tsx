@@ -8,6 +8,7 @@ import { projectService } from "@web/services/project.service";
 import { labelService } from "@web/services/label.service";
 import { useAuthStore } from "@web/stores/auth.store";
 import { useWorkspaceRole } from "@web/hooks/use-workspace-role";
+import { useApiClient } from "@web/hooks/use-api-client";
 import Link from "next/link";
 import { SortableTaskList } from "@web/components/features/tasks/sortable-task-list";
 import { LabelBadge } from "@web/components/features/labels/label-badge";
@@ -15,7 +16,7 @@ import { CreateTaskForm } from "@web/components/features/tasks/create-task-form"
 import { ConfirmDialog } from "@web/components/ui/confirm-dialog";
 import { Button } from "@web/components/ui/button";
 import { BackLink } from "@web/components/layout/back-link";
-import type { Task } from "@flowmanager/types";
+import type { Task, ApiResponse } from "@flowmanager/types";
 
 interface TaskLabel {
   label: { id: string; name: string; color: string };
@@ -32,6 +33,7 @@ export default function ProjectPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { accessToken } = useAuthStore();
+  const client = useApiClient();
   const [showForm, setShowForm] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
   const [confirmDeleteProject, setConfirmDeleteProject] = useState(false);
@@ -40,7 +42,7 @@ export default function ProjectPage() {
 
   const { data: projectData } = useQuery({
     queryKey: ["project", projectId],
-    queryFn: () => projectService.get(workspaceId, projectId, accessToken!),
+    queryFn: () => projectService(client).get(workspaceId, projectId),
     enabled: !!accessToken,
   });
 
@@ -49,29 +51,29 @@ export default function ProjectPage() {
 
   const { data: labelsData } = useQuery({
     queryKey: ["labels", workspaceId],
-    queryFn: () => labelService.list(workspaceId, accessToken!),
+    queryFn: () => labelService(client).list(workspaceId),
     enabled: !!accessToken,
   });
 
   const { data, isLoading } = useQuery({
     queryKey: ["tasks", workspaceId, projectId, selectedLabel],
     queryFn: () =>
-      taskService.list(workspaceId, projectId, accessToken!, {
+      taskService(client).list(workspaceId, projectId, {
         label_id: selectedLabel ?? undefined,
       }),
     enabled: !!accessToken,
   });
 
   const workspaceLabels: Label[] =
-    (labelsData as { data: { labels: Label[] } } | undefined)?.data?.labels ?? [];
+    (labelsData as ApiResponse<{ labels: Label[] }> | undefined)?.data?.labels ?? [];
 
   const tasks: (Task & { task_labels?: TaskLabel[] })[] =
-    (data as { data: { tasks: (Task & { task_labels?: TaskLabel[] })[] } } | undefined)?.data
+    (data as ApiResponse<{ tasks: (Task & { task_labels?: TaskLabel[] })[] }> | undefined)?.data
       ?.tasks ?? [];
 
   const createMutation = useMutation({
     mutationFn: (formData: { title: string; priority: string }) =>
-      taskService.create(workspaceId, projectId, formData, accessToken!),
+      taskService(client).create(workspaceId, projectId, formData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks", workspaceId, projectId] });
       setShowForm(false);
@@ -80,8 +82,8 @@ export default function ProjectPage() {
 
   const archiveMutation = useMutation({
     mutationFn: () => isArchived
-      ? projectService.unarchive(workspaceId, projectId, accessToken!)
-      : projectService.archive(workspaceId, projectId, accessToken!),
+      ? projectService(client).unarchive(workspaceId, projectId)
+      : projectService(client).archive(workspaceId, projectId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       queryClient.invalidateQueries({ queryKey: ["projects", workspaceId] });
@@ -90,14 +92,14 @@ export default function ProjectPage() {
 
   const reorderTasksMutation = useMutation({
     mutationFn: (order: string[]) =>
-      taskService.reorder(workspaceId, projectId, order, accessToken!),
+      taskService(client).reorder(workspaceId, projectId, order),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks", workspaceId, projectId] });
     },
   });
 
   const deleteProjectMutation = useMutation({
-    mutationFn: () => projectService.delete(workspaceId, projectId, accessToken!),
+    mutationFn: () => projectService(client).delete(workspaceId, projectId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects", workspaceId] });
       router.push(`/workspaces/${workspaceId}`);

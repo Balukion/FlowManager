@@ -7,9 +7,11 @@ import { activityService } from "@web/services/activity.service";
 import { workspaceService } from "@web/services/workspace.service";
 import { useAuthStore } from "@web/stores/auth.store";
 import { useWorkspaceStore } from "@web/stores/workspace.store";
+import { useApiClient } from "@web/hooks/use-api-client";
 import { ActivityLogList } from "@web/components/features/activity/activity-log-list";
 import { ActivityFilters, type Filters } from "@web/components/features/activity/activity-filters";
 import { BackLink } from "@web/components/layout/back-link";
+import type { MemberWithUser, ApiResponse } from "@flowmanager/types";
 
 interface ActivityLog {
   id: string;
@@ -19,17 +21,13 @@ interface ActivityLog {
   metadata: Record<string, unknown>;
 }
 
-interface MemberWithUser {
-  user_id: string;
-  user: { id: string; name: string };
-}
-
 const EMPTY_FILTERS: Filters = { user_id: "", action: "", from: "", to: "" };
 
 export default function WorkspaceActivityPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const { accessToken } = useAuthStore();
   const { currentWorkspace } = useWorkspaceStore();
+  const client = useApiClient();
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
 
   const activeFilters = {
@@ -41,21 +39,21 @@ export default function WorkspaceActivityPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["activity", workspaceId, filters],
-    queryFn: () => activityService.listByWorkspace(workspaceId, accessToken!, activeFilters),
+    queryFn: () => activityService(client).listByWorkspace(workspaceId, activeFilters),
     enabled: !!accessToken,
   });
 
   const { data: membersData } = useQuery({
     queryKey: ["members", workspaceId],
-    queryFn: () => workspaceService.listMembers(workspaceId, accessToken!),
+    queryFn: () => workspaceService(client).listMembers(workspaceId),
     enabled: !!accessToken,
   });
 
   const logs: ActivityLog[] =
-    (data as { data: { logs: ActivityLog[] } } | undefined)?.data?.logs ?? [];
+    (data as ApiResponse<{ logs: ActivityLog[] }> | undefined)?.data?.logs ?? [];
 
   const members: { id: string; name: string }[] =
-    ((membersData as { data: { members: MemberWithUser[] } } | undefined)?.data?.members ?? [])
+    ((membersData as ApiResponse<{ members: MemberWithUser[] }> | undefined)?.data?.members ?? [])
       .map((m) => ({ id: m.user_id, name: m.user.name }));
 
   return (

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { labelService } from "@web/services/label.service";
+import { useApiClient } from "@web/hooks/use-api-client";
 import { LabelBadge } from "./label-badge";
 import { LabelForm } from "./label-form";
 import { Button } from "@web/components/ui/button";
@@ -14,7 +15,6 @@ interface Label {
 
 interface LabelManagerProps {
   workspaceId: string;
-  token: string;
   labels: Label[];
   canManage?: boolean;
   onUpdate: () => void;
@@ -22,7 +22,8 @@ interface LabelManagerProps {
 
 const DEFAULT_COLOR = "#6366f1";
 
-export function LabelManager({ workspaceId, token, labels, canManage = false, onUpdate }: LabelManagerProps) {
+export function LabelManager({ workspaceId, labels, canManage = false, onUpdate }: LabelManagerProps) {
+  const client = useApiClient();
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(DEFAULT_COLOR);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -31,7 +32,7 @@ export function LabelManager({ workspaceId, token, labels, canManage = false, on
 
   async function handleCreate() {
     if (!newName.trim()) return;
-    await labelService.create(workspaceId, { name: newName.trim(), color: newColor }, token);
+    await labelService(client).create(workspaceId, { name: newName.trim(), color: newColor });
     setNewName("");
     setNewColor(DEFAULT_COLOR);
     onUpdate();
@@ -50,18 +51,17 @@ export function LabelManager({ workspaceId, token, labels, canManage = false, on
   }
 
   async function handleSave(labelId: string) {
-    await labelService.update(
+    await labelService(client).update(
       workspaceId,
       labelId,
       { name: editName.trim(), color: editColor },
-      token,
     );
     cancelEdit();
     onUpdate();
   }
 
   async function handleDelete(labelId: string) {
-    await labelService.delete(workspaceId, labelId, token);
+    await labelService(client).delete(workspaceId, labelId);
     onUpdate();
   }
 

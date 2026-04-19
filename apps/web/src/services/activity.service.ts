@@ -1,4 +1,4 @@
-import { api } from "./api.client";
+import type { AuthenticatedClient } from "./api.client";
 
 export interface ActivityFilters {
   user_id?: string;
@@ -18,22 +18,15 @@ function buildQueryString(filters?: ActivityFilters): string {
   return qs ? `?${qs}` : "";
 }
 
-export const activityService = {
-  listByWorkspace(workspaceId: string, token: string, filters?: ActivityFilters) {
-    return api.get(`/workspaces/${workspaceId}/activity-logs${buildQueryString(filters)}`, token);
-  },
+export function activityService(client: AuthenticatedClient) {
+  return {
+    listByWorkspace: (workspaceId: string, filters?: ActivityFilters) =>
+      client.get(`/workspaces/${workspaceId}/activity-logs${buildQueryString(filters)}`),
 
-  listByProject(workspaceId: string, projectId: string, token: string) {
-    return api.get(
-      `/workspaces/${workspaceId}/projects/${projectId}/activity-logs`,
-      token,
-    );
-  },
+    listByProject: (workspaceId: string, projectId: string) =>
+      client.get(`/workspaces/${workspaceId}/projects/${projectId}/activity-logs`),
 
-  listByTask(workspaceId: string, projectId: string, taskId: string, token: string) {
-    return api.get(
-      `/workspaces/${workspaceId}/projects/${projectId}/tasks/${taskId}/activity-logs`,
-      token,
-    );
-  },
-};
+    listByTask: (workspaceId: string, projectId: string, taskId: string) =>
+      client.get(`/workspaces/${workspaceId}/projects/${projectId}/tasks/${taskId}/activity-logs`),
+  };
+}

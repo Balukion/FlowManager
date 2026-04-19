@@ -1,12 +1,11 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { type ActivityAction } from "@prisma/client";
 import { ActivityLogsService } from "./activity-logs.service.js";
-import { ActivityLogsRepository } from "./activity-logs.repository.js";
-import { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
+import { activityLogsRepository, workspacesRepository } from "../../lib/registry.js";
 
 const service = new ActivityLogsService(
-  new ActivityLogsRepository(),
-  new WorkspacesRepository(),
+  activityLogsRepository,
+  workspacesRepository,
 );
 
 export async function listByWorkspace(

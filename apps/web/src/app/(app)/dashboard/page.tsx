@@ -4,10 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { dashboardService } from "@web/services/dashboard.service";
 import { useAuthStore } from "@web/stores/auth.store";
 import { useWorkspaceStore } from "@web/stores/workspace.store";
+import { useApiClient } from "@web/hooks/use-api-client";
 import { DashboardStats } from "@web/components/features/dashboard/dashboard-stats";
 import { RecentTasksList } from "@web/components/features/dashboard/recent-tasks";
 import { ProjectCompletionList } from "@web/components/features/dashboard/project-completion-list";
 import { MemberWorkloadList } from "@web/components/features/dashboard/member-workload-list";
+import type { ApiResponse } from "@flowmanager/types";
 
 interface DashboardData {
   tasks: {
@@ -44,14 +46,15 @@ interface DashboardData {
 export default function DashboardPage() {
   const { accessToken } = useAuthStore();
   const { currentWorkspace } = useWorkspaceStore();
+  const client = useApiClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard", currentWorkspace?.id],
-    queryFn: () => dashboardService.get(currentWorkspace!.id, accessToken!),
+    queryFn: () => dashboardService(client).get(currentWorkspace!.id),
     enabled: !!currentWorkspace && !!accessToken,
   });
 
-  const dashboardData = (data as { data: DashboardData } | undefined)?.data;
+  const dashboardData = (data as ApiResponse<DashboardData> | undefined)?.data;
 
   if (!currentWorkspace) {
     return (

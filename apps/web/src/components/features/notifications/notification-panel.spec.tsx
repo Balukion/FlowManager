@@ -8,13 +8,17 @@ const mockMarkAsRead = vi.fn();
 const mockMarkAllAsRead = vi.fn();
 const mockDelete = vi.fn();
 
+vi.mock("@web/hooks/use-api-client", () => ({
+  useApiClient: vi.fn(() => ({})),
+}));
+
 vi.mock("@web/services/notification.service", () => ({
-  notificationService: {
-    list: (...args: unknown[]) => mockList(...args),
-    markAsRead: (...args: unknown[]) => mockMarkAsRead(...args),
-    markAllAsRead: (...args: unknown[]) => mockMarkAllAsRead(...args),
-    delete: (...args: unknown[]) => mockDelete(...args),
-  },
+  notificationService: vi.fn(() => ({
+    list: mockList,
+    markAsRead: mockMarkAsRead,
+    markAllAsRead: mockMarkAllAsRead,
+    delete: mockDelete,
+  })),
 }));
 
 const notifications = [
@@ -34,8 +38,6 @@ const notifications = [
   },
 ];
 
-const defaultProps = { token: "fake-token" };
-
 beforeEach(() => {
   vi.clearAllMocks();
   mockList.mockResolvedValue({
@@ -46,12 +48,12 @@ beforeEach(() => {
 
 describe("NotificationPanel", () => {
   it("renders bell button", () => {
-    render(<NotificationPanel {...defaultProps} />);
+    render(<NotificationPanel />);
     expect(screen.getByRole("button", { name: /notificações/i })).toBeInTheDocument();
   });
 
   it("shows unread badge when there are unread notifications", async () => {
-    render(<NotificationPanel {...defaultProps} />);
+    render(<NotificationPanel />);
     await userEvent.click(screen.getByRole("button", { name: /notificações/i }));
     await waitFor(() => {
       expect(screen.getByText("1")).toBeInTheDocument();
@@ -63,7 +65,7 @@ describe("NotificationPanel", () => {
       data: { notifications: [] },
       meta: { unread_count: 0 },
     });
-    render(<NotificationPanel {...defaultProps} />);
+    render(<NotificationPanel />);
     await userEvent.click(screen.getByRole("button", { name: /notificações/i }));
     await waitFor(() => {
       expect(screen.queryByText("0")).not.toBeInTheDocument();
@@ -71,7 +73,7 @@ describe("NotificationPanel", () => {
   });
 
   it("opens panel and lists notifications on click", async () => {
-    render(<NotificationPanel {...defaultProps} />);
+    render(<NotificationPanel />);
     await userEvent.click(screen.getByRole("button", { name: /notificações/i }));
     await waitFor(() => {
       expect(screen.getByText("Passo atribuído")).toBeInTheDocument();
@@ -81,7 +83,7 @@ describe("NotificationPanel", () => {
 
   it("shows empty state when there are no notifications", async () => {
     mockList.mockResolvedValue({ data: { notifications: [] }, meta: { unread_count: 0 } });
-    render(<NotificationPanel {...defaultProps} />);
+    render(<NotificationPanel />);
     await userEvent.click(screen.getByRole("button", { name: /notificações/i }));
     await waitFor(() => {
       expect(screen.getByText(/nenhuma notificação/i)).toBeInTheDocument();
@@ -90,43 +92,43 @@ describe("NotificationPanel", () => {
 
   it("calls markAsRead and refreshes when clicking mark as read", async () => {
     mockMarkAsRead.mockResolvedValue(undefined);
-    render(<NotificationPanel {...defaultProps} />);
+    render(<NotificationPanel />);
     await userEvent.click(screen.getByRole("button", { name: /notificações/i }));
     await waitFor(() => screen.getByText("Passo atribuído"));
 
     await userEvent.click(screen.getByRole("button", { name: /marcar como lida/i }));
     await waitFor(() => {
-      expect(mockMarkAsRead).toHaveBeenCalledWith("n-1", "fake-token");
+      expect(mockMarkAsRead).toHaveBeenCalledWith("n-1");
     });
   });
 
   it("calls markAllAsRead when clicking mark all as read", async () => {
     mockMarkAllAsRead.mockResolvedValue(undefined);
-    render(<NotificationPanel {...defaultProps} />);
+    render(<NotificationPanel />);
     await userEvent.click(screen.getByRole("button", { name: /notificações/i }));
     await waitFor(() => screen.getByText("Passo atribuído"));
 
     await userEvent.click(screen.getByRole("button", { name: /marcar todas/i }));
     await waitFor(() => {
-      expect(mockMarkAllAsRead).toHaveBeenCalledWith("fake-token");
+      expect(mockMarkAllAsRead).toHaveBeenCalledWith();
     });
   });
 
   it("calls delete and refreshes when deleting a notification", async () => {
     mockDelete.mockResolvedValue(undefined);
-    render(<NotificationPanel {...defaultProps} />);
+    render(<NotificationPanel />);
     await userEvent.click(screen.getByRole("button", { name: /notificações/i }));
     await waitFor(() => screen.getByText("Passo atribuído"));
 
     const deleteButtons = screen.getAllByRole("button", { name: /remover/i });
     await userEvent.click(deleteButtons[0]);
     await waitFor(() => {
-      expect(mockDelete).toHaveBeenCalledWith("n-1", "fake-token");
+      expect(mockDelete).toHaveBeenCalledWith("n-1");
     });
   });
 
   it("closes panel when pressing Escape", async () => {
-    render(<NotificationPanel {...defaultProps} />);
+    render(<NotificationPanel />);
     await userEvent.click(screen.getByRole("button", { name: /notificações/i }));
     await waitFor(() => screen.getByText("Passo atribuído"));
 

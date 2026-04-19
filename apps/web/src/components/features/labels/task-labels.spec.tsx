@@ -6,11 +6,15 @@ import { TaskLabels } from "./task-labels";
 const mockApplyToTask = vi.fn();
 const mockRemoveFromTask = vi.fn();
 
+vi.mock("@web/hooks/use-api-client", () => ({
+  useApiClient: vi.fn(() => ({})),
+}));
+
 vi.mock("@web/services/label.service", () => ({
-  labelService: {
-    applyToTask: (...args: unknown[]) => mockApplyToTask(...args),
-    removeFromTask: (...args: unknown[]) => mockRemoveFromTask(...args),
-  },
+  labelService: vi.fn(() => ({
+    applyToTask: mockApplyToTask,
+    removeFromTask: mockRemoveFromTask,
+  })),
 }));
 
 const workspaceLabels = [
@@ -23,7 +27,6 @@ const defaultProps = {
   workspaceId: "ws-1",
   projectId: "proj-1",
   taskId: "task-1",
-  token: "fake-token",
   workspaceLabels,
   taskLabels: [] as typeof workspaceLabels,
   canManage: true,
@@ -80,7 +83,7 @@ describe("TaskLabels", () => {
 
     await waitFor(() => {
       expect(mockApplyToTask).toHaveBeenCalledWith(
-        "ws-1", "proj-1", "task-1", "label-1", "fake-token",
+        "ws-1", "proj-1", "task-1", "label-1",
       );
     });
     await waitFor(() => {
@@ -103,7 +106,7 @@ describe("TaskLabels", () => {
 
     await waitFor(() => {
       expect(mockRemoveFromTask).toHaveBeenCalledWith(
-        "ws-1", "proj-1", "task-1", "label-1", "fake-token",
+        "ws-1", "proj-1", "task-1", "label-1",
       );
     });
     await waitFor(() => {

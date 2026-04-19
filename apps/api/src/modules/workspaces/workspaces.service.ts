@@ -5,6 +5,9 @@ import { generatePresignedUploadUrl, getPublicUrl } from "../../lib/s3.js";
 import { env } from "../../config/env.js";
 import type { WorkspacesRepository } from "./workspaces.repository.js";
 import type { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
+import type { ProjectsRepository } from "../projects/projects.repository.js";
+import type { TasksRepository } from "../tasks/tasks.repository.js";
+import type { StepsRepository } from "../steps/steps.repository.js";
 
 const ALLOWED_LOGO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const EXT_MAP: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
@@ -13,6 +16,9 @@ export class WorkspacesService {
   constructor(
     private repo: WorkspacesRepository,
     private activityRepo?: ActivityLogsRepository,
+    private projectsRepo?: Pick<ProjectsRepository, "softDeleteByWorkspace">,
+    private tasksRepo?: Pick<TasksRepository, "softDeleteByWorkspace">,
+    private stepsRepo?: Pick<StepsRepository, "softDeleteByWorkspace">,
   ) {}
 
   async createWorkspace(
@@ -71,7 +77,12 @@ export class WorkspacesService {
 
     if (workspace.owner_id !== userId) throw new ForbiddenError("Apenas o dono pode deletar o workspace");
 
-    await this.repo.deleteWithCascade(workspaceId);
+    await this.stepsRepo?.softDeleteByWorkspace(workspaceId);
+    await this.tasksRepo?.softDeleteByWorkspace(workspaceId);
+    await this.projectsRepo?.softDeleteByWorkspace(workspaceId);
+    await this.repo.deleteAllMembers(workspaceId);
+    await this.repo.deleteAllInvitations(workspaceId);
+    await this.repo.softDelete(workspaceId);
   }
 
   async listMembers(workspaceId: string, userId: string) {

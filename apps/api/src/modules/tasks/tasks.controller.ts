@@ -1,16 +1,13 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { type Priority, type TaskStatus } from "@prisma/client";
 import { TasksService } from "./tasks.service.js";
-import { TasksRepository } from "./tasks.repository.js";
-import { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
-import { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
-import { NotificationsRepository } from "../notifications/notifications.repository.js";
+import { tasksRepository, workspacesRepository, activityLogsRepository, notificationsRepository } from "../../lib/registry.js";
 
 const service = new TasksService(
-  new TasksRepository(),
-  new WorkspacesRepository(),
-  new ActivityLogsRepository(),
-  new NotificationsRepository(),
+  tasksRepository,
+  workspacesRepository,
+  activityLogsRepository,
+  notificationsRepository,
 );
 
 type TaskParams = { id: string; projectId: string; taskId: string };

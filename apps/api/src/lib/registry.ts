@@ -1,0 +1,25 @@
+import { WorkspacesRepository } from "../modules/workspaces/workspaces.repository.js";
+import { TasksRepository } from "../modules/tasks/tasks.repository.js";
+import { ActivityLogsRepository } from "../modules/activity-logs/activity-logs.repository.js";
+import { NotificationsRepository } from "../modules/notifications/notifications.repository.js";
+import { ProjectsRepository } from "../modules/projects/projects.repository.js";
+import { LabelsRepository } from "../modules/labels/labels.repository.js";
+import { CommentsRepository } from "../modules/comments/comments.repository.js";
+import { StepsRepository } from "../modules/steps/steps.repository.js";
+import { DashboardRepository } from "../modules/dashboard/dashboard.repository.js";
+import { InvitationsRepository } from "../modules/invitations/invitations.repository.js";
+import { UsersRepository } from "../modules/users/users.repository.js";
+import { TokenRepository } from "../modules/auth/auth.repository.js";
+
+export const workspacesRepository = new WorkspacesRepository();
+export const tasksRepository = new TasksRepository();
+export const activityLogsRepository = new ActivityLogsRepository();
+export const notificationsRepository = new NotificationsRepository();
+export const projectsRepository = new ProjectsRepository();
+export const labelsRepository = new LabelsRepository();
+export const commentsRepository = new CommentsRepository();
+export const stepsRepository = new StepsRepository();
+export const dashboardRepository = new DashboardRepository();
+export const invitationsRepository = new InvitationsRepository();
+export const usersRepository = new UsersRepository();
+export const tokenRepository = new TokenRepository();

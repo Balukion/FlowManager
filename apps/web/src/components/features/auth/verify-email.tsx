@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authService } from "@web/services/auth.service";
+import { getErrorMessage } from "@shared/utils";
 
 export function VerifyEmail() {
   const router = useRouter();
@@ -21,7 +22,7 @@ export function VerifyEmail() {
       })
       .catch((err: unknown) => {
         setStatus("error");
-        setMessage((err as { message?: string })?.message ?? "Algo deu errado");
+        setMessage(getErrorMessage(err));
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

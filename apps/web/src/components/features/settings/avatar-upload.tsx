@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { userService } from "@web/services/user.service";
+import { useApiClient } from "@web/hooks/use-api-client";
+import { getErrorMessage } from "@shared/utils";
 import { Button } from "@web/components/ui/button";
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
@@ -11,11 +13,11 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 interface AvatarUploadProps {
   currentAvatarUrl: string | null;
   userName: string;
-  token: string;
   onUpdate: (url: string | null) => void;
 }
 
-export function AvatarUpload({ currentAvatarUrl, userName, token, onUpdate }: AvatarUploadProps) {
+export function AvatarUpload({ currentAvatarUrl, userName, onUpdate }: AvatarUploadProps) {
+  const client = useApiClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<"idle" | "uploading" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -42,9 +44,8 @@ export function AvatarUpload({ currentAvatarUrl, userName, token, onUpdate }: Av
     setStatus("uploading");
 
     try {
-      const presignRes = (await userService.presignAvatar(
+      const presignRes = (await userService(client).presignAvatar(
         { content_type: file.type, file_size_bytes: file.size },
-        token,
       )) as { data: { upload_url: string; final_url: string } };
 
       const { upload_url, final_url } = presignRes.data;
@@ -57,11 +58,11 @@ export function AvatarUpload({ currentAvatarUrl, userName, token, onUpdate }: Av
 
       if (!putRes.ok) throw new Error("Falha ao enviar a imagem para o servidor.");
 
-      await userService.updateAvatar(final_url, token);
+      await userService(client).updateAvatar(final_url);
       onUpdate(final_url);
       setStatus("idle");
     } catch (err: unknown) {
-      setError((err as { message?: string })?.message ?? "Algo deu errado");
+      setError(getErrorMessage(err));
       setStatus("idle");
     } finally {
       if (inputRef.current) inputRef.current.value = "";
@@ -72,11 +73,11 @@ export function AvatarUpload({ currentAvatarUrl, userName, token, onUpdate }: Av
     setError(null);
     setStatus("uploading");
     try {
-      await userService.deleteAvatar(token);
+      await userService(client).deleteAvatar();
       onUpdate(null);
       setStatus("idle");
     } catch (err: unknown) {
-      setError((err as { message?: string })?.message ?? "Algo deu errado");
+      setError(getErrorMessage(err));
       setStatus("idle");
     }
   }

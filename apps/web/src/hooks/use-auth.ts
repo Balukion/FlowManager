@@ -1,6 +1,7 @@
 import { useAuthStore } from "@web/stores/auth.store";
 import { useWorkspaceStore } from "@web/stores/workspace.store";
 import { authService } from "@web/services/auth.service";
+import { createAuthenticatedClient } from "@web/services/api.client";
 import { getQueryClient } from "@web/lib/query-client";
 import type { AuthResponse } from "@flowmanager/types";
 
@@ -22,7 +23,7 @@ export function useAuth() {
 
   async function logout() {
     if (accessToken) {
-      await authService.logout(accessToken).catch(() => {});
+      await createAuthenticatedClient(accessToken).post("/auth/logout", {}).catch(() => {});
     }
     clearAuth();
     setCurrentWorkspace(null);

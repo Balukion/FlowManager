@@ -1,27 +1,21 @@
-import { api } from "./api.client";
+import type { AuthenticatedClient } from "./api.client";
 
-export const userService = {
-  getMe(token: string) {
-    return api.get("/users/me", token);
-  },
+export function userService(client: AuthenticatedClient) {
+  return {
+    getMe: () => client.get("/users/me"),
 
-  updateMe(data: { name?: string; avatar_url?: string; timezone?: string }, token: string) {
-    return api.patch("/users/me", data, token);
-  },
+    updateMe: (data: { name?: string; avatar_url?: string; timezone?: string }) =>
+      client.patch("/users/me", data),
 
-  updatePassword(data: { current_password: string; new_password: string }, token: string) {
-    return api.patch("/users/me/password", data, token);
-  },
+    updatePassword: (data: { current_password: string; new_password: string }) =>
+      client.patch("/users/me/password", data),
 
-  presignAvatar(data: { content_type: string; file_size_bytes: number }, token: string) {
-    return api.post("/users/me/avatar/presign", data, token);
-  },
+    presignAvatar: (data: { content_type: string; file_size_bytes: number }) =>
+      client.post("/users/me/avatar/presign", data),
 
-  updateAvatar(avatar_url: string, token: string) {
-    return api.patch("/users/me", { avatar_url }, token);
-  },
+    updateAvatar: (avatar_url: string) =>
+      client.patch("/users/me", { avatar_url }),
 
-  deleteAvatar(token: string) {
-    return api.delete("/users/me/avatar", token);
-  },
-};
+    deleteAvatar: () => client.delete("/users/me/avatar"),
+  };
+}

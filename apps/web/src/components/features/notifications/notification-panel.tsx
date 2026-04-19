@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { notificationService } from "@web/services/notification.service";
+import { useApiClient } from "@web/hooks/use-api-client";
 import { NotificationItem } from "./notification-item";
 
 interface Notification {
@@ -12,24 +13,21 @@ interface Notification {
   created_at: Date;
 }
 
-interface NotificationPanelProps {
-  token: string;
-}
-
-export function NotificationPanel({ token }: NotificationPanelProps) {
+export function NotificationPanel() {
+  const client = useApiClient();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = useCallback(async () => {
-    const res = (await notificationService.list(token)) as {
+    const res = (await notificationService(client).list()) as {
       data: { notifications: Notification[] };
       meta: { unread_count: number };
     };
     setNotifications(res.data.notifications);
     setUnreadCount(res.meta.unread_count);
-  }, [token]);
+  }, [client]);
 
   useEffect(() => {
     fetchNotifications();
@@ -54,17 +52,17 @@ export function NotificationPanel({ token }: NotificationPanelProps) {
   }, [open]);
 
   async function handleMarkAsRead(id: string) {
-    await notificationService.markAsRead(id, token);
+    await notificationService(client).markAsRead(id);
     await fetchNotifications();
   }
 
   async function handleMarkAllAsRead() {
-    await notificationService.markAllAsRead(token);
+    await notificationService(client).markAllAsRead();
     await fetchNotifications();
   }
 
   async function handleDelete(id: string) {
-    await notificationService.delete(id, token);
+    await notificationService(client).delete(id);
     await fetchNotifications();
   }
 

@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { generatePresignedUploadUrl, getPublicUrl } from "../../lib/s3.js";
 import { env } from "../../config/env.js";
+import { stripPassword } from "../../lib/user.js";
 import { BadRequestError, UnauthorizedError } from "../../errors/index.js";
 import type { UsersRepository } from "./users.repository.js";
 
@@ -11,11 +12,6 @@ const EXT_MAP: Record<string, string> = {
   "image/png": "png",
   "image/webp": "webp",
 };
-
-function stripPassword<T extends { password_hash?: string }>(user: T) {
-  const { password_hash: _, ...safe } = user;
-  return safe;
-}
 
 function isValidTimezone(tz: string): boolean {
   try {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { authService } from "@web/services/auth.service";
+import { getErrorMessage } from "@shared/utils";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
@@ -21,8 +22,7 @@ export function ForgotPasswordForm() {
       await authService.forgotPassword(email);
       setSent(true);
     } catch (err: unknown) {
-      const message = (err as { message?: string })?.message ?? "Algo deu errado";
-      setError(message);
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

@@ -1,19 +1,13 @@
-import { api } from "./api.client";
+import type { AuthenticatedClient } from "./api.client";
 
-export const notificationService = {
-  list(token: string) {
-    return api.get("/notifications", token);
-  },
+export function notificationService(client: AuthenticatedClient) {
+  return {
+    list: () => client.get("/notifications"),
 
-  markAsRead(id: string, token: string) {
-    return api.patch(`/notifications/${id}/read`, {}, token);
-  },
+    markAsRead: (id: string) => client.patch(`/notifications/${id}/read`, {}),
 
-  markAllAsRead(token: string) {
-    return api.patch("/notifications/read-all", {}, token);
-  },
+    markAllAsRead: () => client.patch("/notifications/read-all", {}),
 
-  delete(id: string, token: string) {
-    return api.delete(`/notifications/${id}`, token);
-  },
-};
+    delete: (id: string) => client.delete(`/notifications/${id}`),
+  };
+}

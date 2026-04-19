@@ -3,11 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { invitationService } from "@web/services/invitation.service";
+import { invitationService, previewInvitation } from "@web/services/invitation.service";
+import { createAuthenticatedClient } from "@web/services/api.client";
 import { authService } from "@web/services/auth.service";
+import { getErrorMessage } from "@shared/utils";
 import { useAuthStore } from "@web/stores/auth.store";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
+import type { AuthResponse } from "@flowmanager/types";
 
 interface PreviewData {
   workspace_name: string;
@@ -45,7 +48,7 @@ function AcceptInvitationContent() {
   // Load preview on mount
   useEffect(() => {
     if (!token) return;
-    invitationService.preview(token)
+    previewInvitation(token)
       .then((res) => {
         const d = (res as { data: PreviewData }).data;
         setPreview(d);
@@ -53,7 +56,7 @@ function AcceptInvitationContent() {
         setRegisterEmail(d.email);
       })
       .catch((err: unknown) => {
-        setPreviewError((err as { message?: string })?.message ?? "Convite inválido");
+        setPreviewError(getErrorMessage(err, "Convite inválido"));
       });
   }, [token]);
 
@@ -61,13 +64,13 @@ function AcceptInvitationContent() {
   async function acceptInvitation(authToken: string) {
     setAcceptStatus("loading");
     try {
-      await invitationService.accept(token, authToken);
+      await invitationService(createAuthenticatedClient(authToken)).accept(token);
       setAcceptStatus("success");
       setAcceptMessage("Convite aceito! Você agora é membro do workspace.");
       setTimeout(() => router.push("/workspaces"), 2000);
     } catch (err: unknown) {
       setAcceptStatus("error");
-      setAcceptMessage((err as { message?: string })?.message ?? "Erro ao aceitar convite");
+      setAcceptMessage(getErrorMessage(err, "Erro ao aceitar convite"));
     }
   }
 
@@ -84,13 +87,11 @@ function AcceptInvitationContent() {
     setLoginError("");
     setLoginLoading(true);
     try {
-      const res = await authService.login(loginEmail, loginPassword) as {
-        data: { access_token: string; refresh_token: string; user: { id: string; name: string; email: string; avatar_url: string | null } };
-      };
+      const res = await authService.login(loginEmail, loginPassword) as AuthResponse;
       setAuth(res.data.user, res.data.access_token);
       await acceptInvitation(res.data.access_token);
     } catch (err: unknown) {
-      setLoginError((err as { message?: string })?.message ?? "Email ou senha inválidos");
+      setLoginError(getErrorMessage(err, "Email ou senha inválidos"));
     } finally {
       setLoginLoading(false);
     }
@@ -101,13 +102,11 @@ function AcceptInvitationContent() {
     setRegisterError("");
     setRegisterLoading(true);
     try {
-      const res = await authService.register(registerName, registerEmail, registerPassword) as {
-        data: { access_token: string; refresh_token: string; user: { id: string; name: string; email: string; avatar_url: string | null } };
-      };
+      const res = await authService.register(registerName, registerEmail, registerPassword) as AuthResponse;
       setAuth(res.data.user, res.data.access_token);
       await acceptInvitation(res.data.access_token);
     } catch (err: unknown) {
-      setRegisterError((err as { message?: string })?.message ?? "Erro ao criar conta");
+      setRegisterError(getErrorMessage(err, "Erro ao criar conta"));
     } finally {
       setRegisterLoading(false);
     }

@@ -1,8 +1,8 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { NotificationsService } from "./notifications.service.js";
-import { NotificationsRepository } from "./notifications.repository.js";
+import { notificationsRepository } from "../../lib/registry.js";
 
-const service = new NotificationsService(new NotificationsRepository());
+const service = new NotificationsService(notificationsRepository);
 
 export async function listNotifications(
   request: FastifyRequest<{ Querystring: { limit?: number; cursor?: string } }>,

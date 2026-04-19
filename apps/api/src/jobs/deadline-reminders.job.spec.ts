@@ -21,12 +21,18 @@ const makeStep = (overrides = {}) => ({
   ...overrides,
 });
 
-const makeRepo = () => ({
+const makeTasksRepo = () => ({
   findTasksDueForReminder: vi.fn().mockResolvedValue([]),
+  markReminderSent: vi.fn().mockResolvedValue(undefined),
+});
+
+const makeStepsRepo = () => ({
   findStepsDueForReminder: vi.fn().mockResolvedValue([]),
-  createNotification: vi.fn().mockResolvedValue(undefined),
-  markTaskReminderSent: vi.fn().mockResolvedValue(undefined),
-  markStepReminderSent: vi.fn().mockResolvedValue(undefined),
+  markReminderSent: vi.fn().mockResolvedValue(undefined),
+});
+
+const makeNotificationsRepo = () => ({
+  create: vi.fn().mockResolvedValue(undefined),
 });
 
 const makeLogger = () => ({
@@ -36,15 +42,25 @@ const makeLogger = () => ({
 
 describe("DeadlineRemindersJob", () => {
   let job: DeadlineRemindersJob;
-  let repo: ReturnType<typeof makeRepo>;
+  let tasksRepo: ReturnType<typeof makeTasksRepo>;
+  let stepsRepo: ReturnType<typeof makeStepsRepo>;
+  let notificationsRepo: ReturnType<typeof makeNotificationsRepo>;
   let logger: ReturnType<typeof makeLogger>;
 
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(FIXED_NOW);
-    repo = makeRepo();
+    tasksRepo = makeTasksRepo();
+    stepsRepo = makeStepsRepo();
+    notificationsRepo = makeNotificationsRepo();
     logger = makeLogger();
-    job = new DeadlineRemindersJob(repo as any, logger as any, "0 8 * * *");
+    job = new DeadlineRemindersJob(
+      tasksRepo as any,
+      stepsRepo as any,
+      notificationsRepo as any,
+      logger as any,
+      "0 8 * * *",
+    );
   });
 
   afterEach(() => {
@@ -58,20 +74,20 @@ describe("DeadlineRemindersJob", () => {
 
   it("should query tasks with 24h cutoff", async () => {
     await job.run();
-    expect(repo.findTasksDueForReminder).toHaveBeenCalledWith(CUTOFF_24H);
+    expect(tasksRepo.findTasksDueForReminder).toHaveBeenCalledWith(CUTOFF_24H);
   });
 
   it("should query steps with 24h cutoff", async () => {
     await job.run();
-    expect(repo.findStepsDueForReminder).toHaveBeenCalledWith(CUTOFF_24H);
+    expect(stepsRepo.findStepsDueForReminder).toHaveBeenCalledWith(CUTOFF_24H);
   });
 
   it("should create DEADLINE_APPROACHING notification for task assignee", async () => {
-    repo.findTasksDueForReminder.mockResolvedValue([makeTask()]);
+    tasksRepo.findTasksDueForReminder.mockResolvedValue([makeTask()]);
 
     await job.run();
 
-    expect(repo.createNotification).toHaveBeenCalledWith(
+    expect(notificationsRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
         user_id: "user-assignee",
         type: "DEADLINE_APPROACHING",
@@ -82,7 +98,7 @@ describe("DeadlineRemindersJob", () => {
   });
 
   it("should create notifications for task watchers", async () => {
-    repo.findTasksDueForReminder.mockResolvedValue([
+    tasksRepo.findTasksDueForReminder.mockResolvedValue([
       makeTask({
         assignee: null,
         task_watchers: [{ user_id: "watcher-1" }, { user_id: "watcher-2" }],
@@ -91,17 +107,17 @@ describe("DeadlineRemindersJob", () => {
 
     await job.run();
 
-    expect(repo.createNotification).toHaveBeenCalledTimes(2);
-    expect(repo.createNotification).toHaveBeenCalledWith(
+    expect(notificationsRepo.create).toHaveBeenCalledTimes(2);
+    expect(notificationsRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({ user_id: "watcher-1" }),
     );
-    expect(repo.createNotification).toHaveBeenCalledWith(
+    expect(notificationsRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({ user_id: "watcher-2" }),
     );
   });
 
   it("should not send duplicate notification when assignee is also a watcher", async () => {
-    repo.findTasksDueForReminder.mockResolvedValue([
+    tasksRepo.findTasksDueForReminder.mockResolvedValue([
       makeTask({
         assignee: { id: "user-1" },
         task_watchers: [{ user_id: "user-1" }, { user_id: "user-2" }],
@@ -110,34 +126,34 @@ describe("DeadlineRemindersJob", () => {
 
     await job.run();
 
-    const calls = repo.createNotification.mock.calls.map((c) => c[0].user_id);
-    expect(calls.filter((id) => id === "user-1")).toHaveLength(1);
+    const calls = notificationsRepo.create.mock.calls.map((c: any[]) => c[0].user_id);
+    expect(calls.filter((id: string) => id === "user-1")).toHaveLength(1);
   });
 
   it("should mark task reminder sent after notifying", async () => {
-    repo.findTasksDueForReminder.mockResolvedValue([makeTask()]);
+    tasksRepo.findTasksDueForReminder.mockResolvedValue([makeTask()]);
 
     await job.run();
 
-    expect(repo.markTaskReminderSent).toHaveBeenCalledWith("task-1");
+    expect(tasksRepo.markReminderSent).toHaveBeenCalledWith("task-1");
   });
 
   it("should not mark task reminder sent when no recipients", async () => {
-    repo.findTasksDueForReminder.mockResolvedValue([
+    tasksRepo.findTasksDueForReminder.mockResolvedValue([
       makeTask({ assignee: null, task_watchers: [] }),
     ]);
 
     await job.run();
 
-    expect(repo.markTaskReminderSent).not.toHaveBeenCalled();
+    expect(tasksRepo.markReminderSent).not.toHaveBeenCalled();
   });
 
   it("should create notification for step assignments", async () => {
-    repo.findStepsDueForReminder.mockResolvedValue([makeStep()]);
+    stepsRepo.findStepsDueForReminder.mockResolvedValue([makeStep()]);
 
     await job.run();
 
-    expect(repo.createNotification).toHaveBeenCalledWith(
+    expect(notificationsRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
         user_id: "user-assigned",
         type: "DEADLINE_APPROACHING",
@@ -148,26 +164,26 @@ describe("DeadlineRemindersJob", () => {
   });
 
   it("should mark step reminder sent after notifying", async () => {
-    repo.findStepsDueForReminder.mockResolvedValue([makeStep()]);
+    stepsRepo.findStepsDueForReminder.mockResolvedValue([makeStep()]);
 
     await job.run();
 
-    expect(repo.markStepReminderSent).toHaveBeenCalledWith("step-1");
+    expect(stepsRepo.markReminderSent).toHaveBeenCalledWith("step-1");
   });
 
   it("should not mark step reminder sent when no assignments", async () => {
-    repo.findStepsDueForReminder.mockResolvedValue([
+    stepsRepo.findStepsDueForReminder.mockResolvedValue([
       makeStep({ assignments: [] }),
     ]);
 
     await job.run();
 
-    expect(repo.markStepReminderSent).not.toHaveBeenCalled();
+    expect(stepsRepo.markReminderSent).not.toHaveBeenCalled();
   });
 
   it("should log counts at the end", async () => {
-    repo.findTasksDueForReminder.mockResolvedValue([makeTask()]);
-    repo.findStepsDueForReminder.mockResolvedValue([makeStep()]);
+    tasksRepo.findTasksDueForReminder.mockResolvedValue([makeTask()]);
+    stepsRepo.findStepsDueForReminder.mockResolvedValue([makeStep()]);
 
     await job.run();
 

@@ -1,9 +1,8 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { DashboardService } from "./dashboard.service.js";
-import { DashboardRepository } from "./dashboard.repository.js";
-import { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
+import { dashboardRepository, workspacesRepository } from "../../lib/registry.js";
 
-const service = new DashboardService(new DashboardRepository(), new WorkspacesRepository());
+const service = new DashboardService(dashboardRepository, workspacesRepository);
 
 export async function getDashboard(
   request: FastifyRequest<{ Params: { id: string } }>,

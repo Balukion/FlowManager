@@ -17,7 +17,6 @@ export interface StepWithAssignments {
   status: string;
   order: number;
   assignments?: Assignee[];
-  [key: string]: unknown;
 }
 
 export interface Member {

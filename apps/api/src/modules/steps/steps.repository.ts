@@ -109,4 +109,42 @@ export class StepsRepository {
       data: { unassigned_at: new Date(), unassigned_by: unassignedBy },
     });
   }
+
+  async findStepsDueForReminder(cutoff: Date) {
+    const now = new Date();
+    return prisma.step.findMany({
+      where: {
+        deleted_at: null,
+        status: { not: "DONE" },
+        due_reminder_sent_at: null,
+        deadline: { gte: now, lte: cutoff },
+      },
+      include: {
+        assignments: {
+          where: { unassigned_at: null },
+          select: { user_id: true },
+        },
+        task: {
+          select: {
+            id: true,
+            project: { select: { workspace_id: true } },
+          },
+        },
+      },
+    });
+  }
+
+  async markReminderSent(stepId: string) {
+    return prisma.step.update({
+      where: { id: stepId },
+      data: { due_reminder_sent_at: new Date() },
+    });
+  }
+
+  async softDeleteByWorkspace(workspaceId: string) {
+    return prisma.step.updateMany({
+      where: { task: { project: { workspace_id: workspaceId } }, deleted_at: null },
+      data: { deleted_at: new Date() },
+    });
+  }
 }

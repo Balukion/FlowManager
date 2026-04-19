@@ -1,27 +1,25 @@
 import { api } from "./api.client";
+import type { AuthenticatedClient } from "./api.client";
 
-export const invitationService = {
-  create(workspaceId: string, email: string, token: string) {
-    return api.post(`/workspaces/${workspaceId}/invitations`, { email }, token);
-  },
+export function invitationService(client: AuthenticatedClient) {
+  return {
+    create: (workspaceId: string, email: string) =>
+      client.post(`/workspaces/${workspaceId}/invitations`, { email }),
 
-  list(workspaceId: string, token: string) {
-    return api.get(`/workspaces/${workspaceId}/invitations`, token);
-  },
+    list: (workspaceId: string) =>
+      client.get(`/workspaces/${workspaceId}/invitations`),
 
-  cancel(workspaceId: string, invitationId: string, token: string) {
-    return api.delete(`/workspaces/${workspaceId}/invitations/${invitationId}`, token);
-  },
+    cancel: (workspaceId: string, invitationId: string) =>
+      client.delete(`/workspaces/${workspaceId}/invitations/${invitationId}`),
 
-  accept(inviteToken: string, token: string) {
-    return api.post(`/invitations/${inviteToken}/accept`, {}, token);
-  },
+    accept: (inviteToken: string) =>
+      client.post(`/invitations/${inviteToken}/accept`, {}),
 
-  resend(workspaceId: string, invitationId: string, token: string) {
-    return api.post(`/workspaces/${workspaceId}/invitations/${invitationId}/resend`, {}, token);
-  },
+    resend: (workspaceId: string, invitationId: string) =>
+      client.post(`/workspaces/${workspaceId}/invitations/${invitationId}/resend`, {}),
+  };
+}
 
-  preview(inviteToken: string) {
-    return api.get(`/invitations/preview?token=${encodeURIComponent(inviteToken)}`);
-  },
-};
+// public endpoint — sem autenticação
+export const previewInvitation = (inviteToken: string) =>
+  api.get(`/invitations/preview?token=${encodeURIComponent(inviteToken)}`);

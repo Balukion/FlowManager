@@ -1,8 +1,8 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { UsersService } from "./users.service.js";
-import { UsersRepository } from "./users.repository.js";
+import { usersRepository } from "../../lib/registry.js";
 
-const service = new UsersService(new UsersRepository());
+const service = new UsersService(usersRepository);
 
 export async function getMe(request: FastifyRequest, reply: FastifyReply) {
   const result = await service.getMe(request.userId);

@@ -1,10 +1,8 @@
 import { type ActivityAction } from "@prisma/client";
+import { getSafeLimit, paginateResult } from "@flowmanager/shared";
 import { WorkspaceGuard } from "../../lib/workspace-guard.js";
 import type { ActivityLogsRepository } from "./activity-logs.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
-
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 100;
 
 export class ActivityLogsService {
   private guard: WorkspaceGuard;
@@ -23,7 +21,7 @@ export class ActivityLogsService {
   ) {
     await this.guard.requireMemberOrOwner(workspaceId, userId);
 
-    const limit = Math.min(options.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
+    const limit = getSafeLimit(options.limit);
     const rows = await this.repo.findByWorkspace(workspaceId, {
       cursor: options.cursor,
       limit,
@@ -33,9 +31,7 @@ export class ActivityLogsService {
       to: options.to,
     });
 
-    const hasMore = rows.length > limit;
-    const logs = hasMore ? rows.slice(0, limit) : rows;
-    const next_cursor = hasMore ? logs[logs.length - 1].id : undefined;
+    const { items: logs, next_cursor } = paginateResult(rows, limit);
 
     return { data: { logs }, meta: { next_cursor } };
   }
@@ -48,15 +44,13 @@ export class ActivityLogsService {
   ) {
     await this.guard.requireMemberOrOwner(workspaceId, userId);
 
-    const limit = Math.min(options.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
+    const limit = getSafeLimit(options.limit);
     const rows = await this.repo.findByProject(workspaceId, projectId, {
       cursor: options.cursor,
       limit,
     });
 
-    const hasMore = rows.length > limit;
-    const logs = hasMore ? rows.slice(0, limit) : rows;
-    const next_cursor = hasMore ? logs[logs.length - 1].id : undefined;
+    const { items: logs, next_cursor } = paginateResult(rows, limit);
 
     return { data: { logs }, meta: { next_cursor } };
   }
@@ -69,12 +63,10 @@ export class ActivityLogsService {
   ) {
     await this.guard.requireMemberOrOwner(workspaceId, userId);
 
-    const limit = Math.min(options.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
+    const limit = getSafeLimit(options.limit);
     const rows = await this.repo.findByTask(workspaceId, taskId, { cursor: options.cursor, limit });
 
-    const hasMore = rows.length > limit;
-    const logs = hasMore ? rows.slice(0, limit) : rows;
-    const next_cursor = hasMore ? logs[logs.length - 1].id : undefined;
+    const { items: logs, next_cursor } = paginateResult(rows, limit);
 
     return { data: { logs }, meta: { next_cursor } };
   }

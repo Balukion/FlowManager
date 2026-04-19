@@ -6,6 +6,7 @@ import { env } from "../../config/env.js";
 import { WorkspaceGuard } from "../../lib/workspace-guard.js";
 import type { InvitationsRepository } from "./invitations.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
+import type { UsersRepository } from "../users/users.repository.js";
 
 const INVITATION_EXPIRES_HOURS = 48;
 
@@ -15,8 +16,26 @@ export class InvitationsService {
   constructor(
     private repo: InvitationsRepository,
     private workspacesRepo: WorkspacesRepository,
+    private usersRepo: UsersRepository,
   ) {
     this.guard = new WorkspaceGuard(workspacesRepo);
+  }
+
+  private assertTokenValid(invitation: { status: string; expires_at: Date } | null) {
+    if (!invitation) throw new BadRequestError("Token inválido", "INVALID_TOKEN");
+    if (invitation.status !== "PENDING" && invitation.status !== "VIEWED") {
+      throw new BadRequestError("Este convite já foi usado", "TOKEN_ALREADY_USED");
+    }
+    if (invitation.expires_at < new Date()) {
+      throw new BadRequestError("Este convite expirou", "TOKEN_EXPIRED");
+    }
+  }
+
+  private async fetchAndValidateToken(token: string) {
+    const tokenHash = hashToken(token);
+    const invitation = await this.repo.findByTokenHash(tokenHash);
+    this.assertTokenValid(invitation);
+    return invitation!;
   }
 
   async createInvitation(workspaceId: string, userId: string, email: string) {
@@ -24,11 +43,9 @@ export class InvitationsService {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Check if already a member
-    const existingMember = await this.repo.findMemberByEmail(workspaceId, normalizedEmail);
+    const existingMember = await this.workspacesRepo.findMemberByEmail(workspaceId, normalizedEmail);
     if (existingMember) throw new ConflictError("ALREADY_A_MEMBER", "Este usuário já é membro do workspace");
 
-    // Check if there's a pending invitation
     const pending = await this.repo.findPendingByEmail(workspaceId, normalizedEmail);
     if (pending) throw new ConflictError("INVITATION_ALREADY_PENDING", "Já existe um convite pendente para este email");
 
@@ -52,7 +69,6 @@ export class InvitationsService {
       data: { workspace_name: workspace.name, token, frontend_url: env.FRONTEND_URL },
     });
 
-    // Never expose token_hash in response
     const { token_hash: _, ...invitationData } = invitation as any;
     return { invitation: invitationData };
   }
@@ -61,7 +77,6 @@ export class InvitationsService {
     await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const invitations = await this.repo.findByWorkspace(workspaceId);
-    // Remove token_hash from each invitation
     return {
       invitations: invitations.map(({ token_hash: _, inviter, ...inv }: any) => ({
         ...inv,
@@ -82,19 +97,9 @@ export class InvitationsService {
   }
 
   async acceptInvitation(token: string, userId: string) {
-    const tokenHash = hashToken(token);
-    const invitation = await this.repo.findByTokenHash(tokenHash);
+    const invitation = await this.fetchAndValidateToken(token);
 
-    if (!invitation) throw new BadRequestError("Token inválido", "INVALID_TOKEN");
-    if (invitation.status !== "PENDING" && invitation.status !== "VIEWED") {
-      throw new BadRequestError("Este convite já foi usado", "TOKEN_ALREADY_USED");
-    }
-
-    if (invitation.expires_at < new Date()) {
-      throw new BadRequestError("Este convite expirou", "TOKEN_EXPIRED");
-    }
-
-    const user = await this.repo.findUserById(userId);
+    const user = await this.usersRepo.findById(userId);
     if (!user) throw new NotFoundError("Usuário não encontrado");
 
     if (user.email !== invitation.email) {
@@ -138,34 +143,23 @@ export class InvitationsService {
     const tokenHash = hashToken(token);
     const invitation = await this.repo.findByTokenHashWithDetails(tokenHash);
 
-    if (!invitation) throw new BadRequestError("Token inválido", "INVALID_TOKEN");
-    if (invitation.status !== "PENDING" && invitation.status !== "VIEWED") {
-      throw new BadRequestError("Este convite já foi usado", "TOKEN_ALREADY_USED");
-    }
-    if (invitation.expires_at < new Date()) throw new BadRequestError("Este convite expirou", "TOKEN_EXPIRED");
+    this.assertTokenValid(invitation);
 
-    if (invitation.status === "PENDING") {
-      await this.repo.updateStatus(invitation.id, "VIEWED");
+    if (invitation!.status === "PENDING") {
+      await this.repo.updateStatus(invitation!.id, "VIEWED");
     }
 
     return {
       workspace_name: (invitation as any).workspace.name,
-      email: invitation.email,
+      email: invitation!.email,
       invited_by_name: (invitation as any).inviter.name,
     };
   }
 
   async declineInvitation(token: string, userId: string) {
-    const tokenHash = hashToken(token);
-    const invitation = await this.repo.findByTokenHash(tokenHash);
+    const invitation = await this.fetchAndValidateToken(token);
 
-    if (!invitation) throw new BadRequestError("Token inválido", "INVALID_TOKEN");
-    if (invitation.status !== "PENDING" && invitation.status !== "VIEWED") {
-      throw new BadRequestError("Este convite já foi usado", "TOKEN_ALREADY_USED");
-    }
-    if (invitation.expires_at < new Date()) throw new BadRequestError("Este convite expirou", "TOKEN_EXPIRED");
-
-    const user = await this.repo.findUserById(userId);
+    const user = await this.usersRepo.findById(userId);
     if (!user) throw new NotFoundError("Usuário não encontrado");
 
     if (user.email !== invitation.email) {

@@ -68,19 +68,20 @@ export class InvitationsRepository {
     });
   }
 
-  async findUserById(userId: string) {
-    return prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } });
-  }
-
-  async findMemberByEmail(workspaceId: string, email: string) {
-    return prisma.user.findFirst({
-      where: { email, workspace_members: { some: { workspace_id: workspaceId } } },
-    });
-  }
-
   async createWorkspaceMember(workspaceId: string, userId: string, role: Role) {
     return prisma.workspaceMember.create({
       data: { workspace_id: workspaceId, user_id: userId, role, joined_at: new Date() },
     });
+  }
+
+  async expireOverdue(): Promise<number> {
+    const result = await prisma.invitation.updateMany({
+      where: {
+        status: "PENDING",
+        expires_at: { lt: new Date() },
+      },
+      data: { status: "EXPIRED" },
+    });
+    return result.count;
   }
 }

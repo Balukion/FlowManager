@@ -639,3 +639,8 @@ Queries que tipicamente precisam ser invalidados junto:
 - `["task", taskId]` → mutations que afetam status ou dados da tarefa
 - `["activity", taskId]` → qualquer mutation que gera um activity log na tarefa
 - `["tasks", workspaceId, projectId]` → mutations que afetam a lista de tarefas
+
+### Rodar arquivo de integração isolado após a suite completa gera falsos negativos
+Sintoma: um teste de integração falha ao rodar em isolamento (`vitest run caminho/do/arquivo.spec.ts`), mas passa normalmente quando a suite completa roda com `turbo test`. O erro típico é algo como `Cannot destructure property 'access_token' of '...data' as it is undefined`, indicando que o endpoint retornou erro em vez de sucesso.
+Causa: `git stash` não guarda arquivos untracked. Mais importante: a suite completa deixa estado no banco de testes (registros criados nos testes de integração). Rodar um arquivo isolado depois encontra dados já existentes (ex: email duplicado), causando erros de constraint. O teste falha por estado sujo — não por bug no código.
+Solução: para verificar se uma falha é pré-existente, sempre rodar a suite completa do zero com `turbo test`, nunca isolar o arquivo suspeito depois de já ter rodado tudo. Se precisar rodar um arquivo de integração em isolamento, resetar o banco de testes antes.

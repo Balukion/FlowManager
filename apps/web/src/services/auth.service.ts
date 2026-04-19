@@ -9,10 +9,6 @@ export const authService = {
     return api.post("/auth/register", { name, email, password });
   },
 
-  logout(token: string) {
-    return api.post("/auth/logout", {}, token);
-  },
-
   refreshToken(refresh_token: string) {
     return api.post("/auth/refresh", { refresh_token });
   },

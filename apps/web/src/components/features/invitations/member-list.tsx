@@ -1,18 +1,9 @@
+import type { MemberWithUser } from "@flowmanager/types";
+
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Admin",
   MEMBER: "Membro",
 };
-
-interface MemberWithUser {
-  id: string;
-  workspace_id: string;
-  user_id: string;
-  role: string;
-  position: number | null;
-  last_seen_at: Date | null;
-  joined_at: Date;
-  user: { id: string; name: string; email: string; avatar_url: string | null };
-}
 
 interface MemberListProps {
   members: MemberWithUser[];

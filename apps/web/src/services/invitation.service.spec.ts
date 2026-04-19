@@ -5,9 +5,9 @@ vi.mock("./api.client.js", () => ({
 }));
 
 import { api } from "./api.client.js";
-import { invitationService } from "./invitation.service.js";
+import { invitationService, previewInvitation } from "./invitation.service.js";
 
-const TOKEN = "bearer-token";
+const mockClient = { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() };
 const WS_ID = "ws-1";
 const INV_ID = "inv-1";
 
@@ -15,63 +15,59 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("invitationService.create", () => {
   it("should POST /workspaces/:id/invitations with email", async () => {
-    vi.mocked(api.post).mockResolvedValue({ data: {} });
-    await invitationService.create(WS_ID, "joao@test.com", TOKEN);
-    expect(api.post).toHaveBeenCalledWith(
+    mockClient.post.mockResolvedValue({ data: {} });
+    await invitationService(mockClient).create(WS_ID, "joao@test.com");
+    expect(mockClient.post).toHaveBeenCalledWith(
       `/workspaces/${WS_ID}/invitations`,
       { email: "joao@test.com" },
-      TOKEN,
     );
   });
 });
 
 describe("invitationService.list", () => {
-  it("should GET /workspaces/:id/invitations with token", async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: { invitations: [] } });
-    await invitationService.list(WS_ID, TOKEN);
-    expect(api.get).toHaveBeenCalledWith(`/workspaces/${WS_ID}/invitations`, TOKEN);
+  it("should GET /workspaces/:id/invitations", async () => {
+    mockClient.get.mockResolvedValue({ data: { invitations: [] } });
+    await invitationService(mockClient).list(WS_ID);
+    expect(mockClient.get).toHaveBeenCalledWith(`/workspaces/${WS_ID}/invitations`);
   });
 });
 
 describe("invitationService.cancel", () => {
-  it("should DELETE /workspaces/:id/invitations/:invId with token", async () => {
-    vi.mocked(api.delete).mockResolvedValue({});
-    await invitationService.cancel(WS_ID, INV_ID, TOKEN);
-    expect(api.delete).toHaveBeenCalledWith(
+  it("should DELETE /workspaces/:id/invitations/:invId", async () => {
+    mockClient.delete.mockResolvedValue({});
+    await invitationService(mockClient).cancel(WS_ID, INV_ID);
+    expect(mockClient.delete).toHaveBeenCalledWith(
       `/workspaces/${WS_ID}/invitations/${INV_ID}`,
-      TOKEN,
     );
   });
 });
 
 describe("invitationService.accept", () => {
-  it("should POST /invitations/:token/accept with auth token", async () => {
-    vi.mocked(api.post).mockResolvedValue({ data: {} });
-    await invitationService.accept("invite-token-abc", TOKEN);
-    expect(api.post).toHaveBeenCalledWith(
+  it("should POST /invitations/:token/accept", async () => {
+    mockClient.post.mockResolvedValue({ data: {} });
+    await invitationService(mockClient).accept("invite-token-abc");
+    expect(mockClient.post).toHaveBeenCalledWith(
       `/invitations/invite-token-abc/accept`,
       {},
-      TOKEN,
     );
   });
 });
 
 describe("invitationService.resend", () => {
-  it("should POST /workspaces/:id/invitations/:invId/resend with token", async () => {
-    vi.mocked(api.post).mockResolvedValue({ data: { invitation: {} } });
-    await invitationService.resend(WS_ID, INV_ID, TOKEN);
-    expect(api.post).toHaveBeenCalledWith(
+  it("should POST /workspaces/:id/invitations/:invId/resend", async () => {
+    mockClient.post.mockResolvedValue({ data: { invitation: {} } });
+    await invitationService(mockClient).resend(WS_ID, INV_ID);
+    expect(mockClient.post).toHaveBeenCalledWith(
       `/workspaces/${WS_ID}/invitations/${INV_ID}/resend`,
       {},
-      TOKEN,
     );
   });
 });
 
-describe("invitationService.preview", () => {
+describe("previewInvitation", () => {
   it("should GET /invitations/preview?token=... without auth", async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { workspace_name: "X", email: "a@b.com", invited_by_name: "Y" } });
-    await invitationService.preview("my-invite-token");
+    await previewInvitation("my-invite-token");
     expect(api.get).toHaveBeenCalledWith("/invitations/preview?token=my-invite-token");
   });
 });

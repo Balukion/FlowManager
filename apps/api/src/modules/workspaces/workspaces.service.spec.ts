@@ -29,17 +29,24 @@ const mockRepo = {
   deleteMember: vi.fn(),
   deleteAllMembers: vi.fn(),
   deleteAllInvitations: vi.fn(),
-  softDeleteProjectsByWorkspace: vi.fn(),
-  softDeleteTasksByWorkspace: vi.fn(),
-  softDeleteStepsByWorkspace: vi.fn(),
-  deleteWithCascade: vi.fn(),
+  deleteExpiredWorkspaces: vi.fn(),
 };
+
+const mockProjectsRepo = { softDeleteByWorkspace: vi.fn() };
+const mockTasksRepo = { softDeleteByWorkspace: vi.fn() };
+const mockStepsRepo = { softDeleteByWorkspace: vi.fn() };
 
 let service: WorkspacesService;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  service = new WorkspacesService(mockRepo as any);
+  service = new WorkspacesService(
+    mockRepo as any,
+    undefined,
+    mockProjectsRepo as any,
+    mockTasksRepo as any,
+    mockStepsRepo as any,
+  );
 });
 
 // ─── deleteWorkspace ──────────────────────────────────────────────────────────
@@ -67,19 +74,22 @@ describe("deleteWorkspace", () => {
     ).rejects.toThrow(ForbiddenError);
   });
 
-  it("deve chamar deleteWithCascade com o workspaceId correto quando o dono deleta", async () => {
+  it("deve soft-delete steps, tasks, projects, membros, convites e workspace em cascata", async () => {
     mockRepo.findById.mockResolvedValue(
       makeWorkspace({ id: WORKSPACE_ID, owner_id: OWNER_ID }),
     );
-    mockRepo.deleteWithCascade.mockResolvedValue(undefined);
 
     await service.deleteWorkspace(WORKSPACE_ID, OWNER_ID);
 
-    expect(mockRepo.deleteWithCascade).toHaveBeenCalledOnce();
-    expect(mockRepo.deleteWithCascade).toHaveBeenCalledWith(WORKSPACE_ID);
+    expect(mockStepsRepo.softDeleteByWorkspace).toHaveBeenCalledWith(WORKSPACE_ID);
+    expect(mockTasksRepo.softDeleteByWorkspace).toHaveBeenCalledWith(WORKSPACE_ID);
+    expect(mockProjectsRepo.softDeleteByWorkspace).toHaveBeenCalledWith(WORKSPACE_ID);
+    expect(mockRepo.deleteAllMembers).toHaveBeenCalledWith(WORKSPACE_ID);
+    expect(mockRepo.deleteAllInvitations).toHaveBeenCalledWith(WORKSPACE_ID);
+    expect(mockRepo.softDelete).toHaveBeenCalledWith(WORKSPACE_ID);
   });
 
-  it("não deve chamar deleteWithCascade quando o usuário não é dono", async () => {
+  it("não deve executar o cascade quando o usuário não é dono", async () => {
     mockRepo.findById.mockResolvedValue(
       makeWorkspace({ id: WORKSPACE_ID, owner_id: OWNER_ID }),
     );
@@ -88,16 +98,18 @@ describe("deleteWorkspace", () => {
       service.deleteWorkspace(WORKSPACE_ID, OTHER_USER_ID),
     ).rejects.toThrow(ForbiddenError);
 
-    expect(mockRepo.deleteWithCascade).not.toHaveBeenCalled();
+    expect(mockStepsRepo.softDeleteByWorkspace).not.toHaveBeenCalled();
+    expect(mockRepo.softDelete).not.toHaveBeenCalled();
   });
 
-  it("não deve chamar deleteWithCascade quando o workspace não existe", async () => {
+  it("não deve executar o cascade quando o workspace não existe", async () => {
     mockRepo.findById.mockResolvedValue(null);
 
     await expect(
       service.deleteWorkspace(WORKSPACE_ID, OWNER_ID),
     ).rejects.toThrow(NotFoundError);
 
-    expect(mockRepo.deleteWithCascade).not.toHaveBeenCalled();
+    expect(mockStepsRepo.softDeleteByWorkspace).not.toHaveBeenCalled();
+    expect(mockRepo.softDelete).not.toHaveBeenCalled();
   });
 });

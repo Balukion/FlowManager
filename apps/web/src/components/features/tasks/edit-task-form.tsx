@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@shared/utils";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
@@ -42,7 +43,7 @@ export function EditTaskForm({ task, onSubmit, onCancel }: EditTaskFormProps) {
         deadline: deadline || null,
       });
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Algo deu errado");
+      setSubmitError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

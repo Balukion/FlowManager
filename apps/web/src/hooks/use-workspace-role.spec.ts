@@ -3,15 +3,20 @@ import { renderHook, waitFor } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+const mockGetMe = vi.fn();
+
+vi.mock("@web/hooks/use-api-client", () => ({
+  useApiClient: vi.fn(() => ({})),
+}));
+
 vi.mock("@web/services/workspace.service", () => ({
-  workspaceService: { listMembers: vi.fn() },
+  workspaceService: vi.fn(() => ({ getMe: mockGetMe })),
 }));
 
 vi.mock("@web/stores/auth.store", () => ({
   useAuthStore: () => ({ accessToken: "token-123", user: { id: "user-owner" } }),
 }));
 
-import { workspaceService } from "@web/services/workspace.service";
 import { useWorkspaceStore } from "@web/stores/workspace.store";
 import { useWorkspaceRole } from "./use-workspace-role";
 
@@ -29,16 +34,15 @@ const mockWorkspace = {
   deleted_at: null,
 };
 
-const makeMembers = (overrides: { user_id: string; role: string }[]) =>
-  overrides.map((m, i) => ({
-    id: `member-${i}`,
-    workspace_id: "ws-1",
-    user_id: m.user_id,
-    role: m.role,
-    position: null,
-    last_seen_at: null,
-    joined_at: new Date("2026-01-01"),
-  }));
+const makeMember = (overrides: { user_id: string; role: string }) => ({
+  id: "member-1",
+  workspace_id: "ws-1",
+  user_id: overrides.user_id,
+  role: overrides.role,
+  position: null,
+  last_seen_at: null,
+  joined_at: new Date("2026-01-01"),
+});
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -52,9 +56,9 @@ beforeEach(() => {
 
 describe("useWorkspaceRole", () => {
   it("owner sem role ADMIN → isOwner: true, isAdminOrOwner: true, isAdmin: false", async () => {
-    vi.mocked(workspaceService.listMembers).mockResolvedValue({
-      data: { members: makeMembers([{ user_id: "user-owner", role: "MEMBER" }]) },
-    } as never);
+    mockGetMe.mockResolvedValue({
+      data: { member: makeMember({ user_id: "user-owner", role: "MEMBER" }) },
+    });
 
     const { result } = renderHook(() => useWorkspaceRole("ws-1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -66,11 +70,10 @@ describe("useWorkspaceRole", () => {
   });
 
   it("admin sem ser owner → isAdmin: true, isAdminOrOwner: true, isOwner: false", async () => {
-    vi.mocked(workspaceService.listMembers).mockResolvedValue({
-      data: { members: makeMembers([{ user_id: "user-owner", role: "ADMIN" }]) },
-    } as never);
+    mockGetMe.mockResolvedValue({
+      data: { member: makeMember({ user_id: "user-owner", role: "ADMIN" }) },
+    });
 
-    // Workspace com dono diferente do user atual
     useWorkspaceStore.setState({
       currentWorkspace: { ...mockWorkspace, owner_id: "other-user" },
     });
@@ -85,9 +88,9 @@ describe("useWorkspaceRole", () => {
   });
 
   it("membro simples → isMember: true, isAdmin: false, isOwner: false, isAdminOrOwner: false", async () => {
-    vi.mocked(workspaceService.listMembers).mockResolvedValue({
-      data: { members: makeMembers([{ user_id: "user-owner", role: "MEMBER" }]) },
-    } as never);
+    mockGetMe.mockResolvedValue({
+      data: { member: makeMember({ user_id: "user-owner", role: "MEMBER" }) },
+    });
 
     useWorkspaceStore.setState({
       currentWorkspace: { ...mockWorkspace, owner_id: "other-user" },
@@ -102,10 +105,10 @@ describe("useWorkspaceRole", () => {
     expect(result.current.isAdminOrOwner).toBe(false);
   });
 
-  it("usuário não membro → tudo false, isMember: false", async () => {
-    vi.mocked(workspaceService.listMembers).mockResolvedValue({
-      data: { members: makeMembers([{ user_id: "another-user", role: "MEMBER" }]) },
-    } as never);
+  it("usuário não membro → currentMember null, isMember: false", async () => {
+    mockGetMe.mockResolvedValue({
+      data: { member: null },
+    });
 
     useWorkspaceStore.setState({
       currentWorkspace: { ...mockWorkspace, owner_id: "another-user" },
@@ -122,7 +125,7 @@ describe("useWorkspaceRole", () => {
   });
 
   it("isLoading: true enquanto a query ainda não resolveu", () => {
-    vi.mocked(workspaceService.listMembers).mockReturnValue(new Promise(() => {}));
+    mockGetMe.mockReturnValue(new Promise(() => {}));
 
     const { result } = renderHook(() => useWorkspaceRole("ws-1"), { wrapper });
 

@@ -3,19 +3,22 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { userService } from "@web/services/user.service";
 import { useAuthStore } from "@web/stores/auth.store";
+import { useApiClient } from "@web/hooks/use-api-client";
 import { ProfileForm } from "@web/components/features/settings/profile-form";
 import { PasswordForm } from "@web/components/features/settings/password-form";
 import { AvatarUpload } from "@web/components/features/settings/avatar-upload";
+import type { ApiResponse } from "@flowmanager/types";
 
 export default function SettingsPage() {
   const { user, accessToken, setAuth } = useAuthStore();
   const queryClient = useQueryClient();
+  const client = useApiClient();
 
   const updateProfileMutation = useMutation({
     mutationFn: (data: { name: string; timezone: string }) =>
-      userService.updateMe(data, accessToken!),
+      userService(client).updateMe(data),
     onSuccess: (data) => {
-      const updated = (data as { data: { user: typeof user } })?.data?.user;
+      const updated = (data as ApiResponse<{ user: typeof user }>)?.data?.user;
       if (updated && accessToken) setAuth(updated, accessToken);
       queryClient.invalidateQueries({ queryKey: ["me"] });
     },
@@ -23,12 +26,12 @@ export default function SettingsPage() {
 
   const updatePasswordMutation = useMutation({
     mutationFn: (data: { current_password: string; new_password: string }) =>
-      userService.updatePassword(data, accessToken!),
+      userService(client).updatePassword(data),
   });
 
   function handleAvatarUpdate(url: string | null) {
     if (!user || !accessToken) return;
-    setAuth({ ...user, avatar_url: url ?? undefined }, accessToken);
+    setAuth({ ...user, avatar_url: url }, accessToken);
     queryClient.invalidateQueries({ queryKey: ["me"] });
   }
 
@@ -46,7 +49,6 @@ export default function SettingsPage() {
         <AvatarUpload
           currentAvatarUrl={user.avatar_url ?? null}
           userName={user.name}
-          token={accessToken!}
           onUpdate={handleAvatarUpdate}
         />
         <ProfileForm

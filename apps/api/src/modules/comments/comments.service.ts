@@ -1,3 +1,4 @@
+import { getSafeLimit, paginateResult } from "@flowmanager/shared";
 import { BadRequestError, ForbiddenError, NotFoundError } from "../../errors/index.js";
 import { WorkspaceGuard } from "../../lib/workspace-guard.js";
 import { processMentions } from "../../lib/mentions.js";
@@ -6,9 +7,6 @@ import type { TasksRepository } from "../tasks/tasks.repository.js";
 import type { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
 import type { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
 import type { NotificationsRepository } from "../notifications/notifications.repository.js";
-
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 100;
 
 export class CommentsService {
   private guard: WorkspaceGuard;
@@ -78,11 +76,9 @@ export class CommentsService {
     const task = await this.tasksRepo.findById(taskId);
     if (!task || task.project_id !== projectId) throw new NotFoundError("Tarefa não encontrada");
 
-    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
-    const items = await this.repo.findByTask(taskId, { limit, cursor: query.cursor });
-    const hasMore = items.length > limit;
-    const comments = hasMore ? items.slice(0, limit) : items;
-    const next_cursor = hasMore ? comments[comments.length - 1].id : undefined;
+    const limit = getSafeLimit(query.limit);
+    const rows = await this.repo.findByTask(taskId, { limit, cursor: query.cursor });
+    const { items: comments, next_cursor } = paginateResult(rows, limit);
 
     return {
       data: { comments },

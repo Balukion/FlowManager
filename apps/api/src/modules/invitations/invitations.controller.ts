@@ -1,11 +1,11 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { InvitationsService } from "./invitations.service.js";
-import { InvitationsRepository } from "./invitations.repository.js";
-import { WorkspacesRepository } from "../workspaces/workspaces.repository.js";
+import { invitationsRepository, workspacesRepository, usersRepository } from "../../lib/registry.js";
 
 const service = new InvitationsService(
-  new InvitationsRepository(),
-  new WorkspacesRepository(),
+  invitationsRepository,
+  workspacesRepository,
+  usersRepository,
 );
 
 export async function createInvitation(

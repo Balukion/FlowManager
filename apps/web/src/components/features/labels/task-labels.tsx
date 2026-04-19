@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { labelService } from "@web/services/label.service";
+import { useApiClient } from "@web/hooks/use-api-client";
 import { LabelBadge } from "./label-badge";
 import { Button } from "@web/components/ui/button";
 
@@ -15,7 +16,6 @@ interface TaskLabelsProps {
   workspaceId: string;
   projectId: string;
   taskId: string;
-  token: string;
   workspaceLabels: Label[];
   taskLabels: Label[];
   canManage?: boolean;
@@ -26,12 +26,12 @@ export function TaskLabels({
   workspaceId,
   projectId,
   taskId,
-  token,
   workspaceLabels,
   taskLabels,
   canManage = false,
   onUpdate,
 }: TaskLabelsProps) {
+  const client = useApiClient();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -57,13 +57,13 @@ export function TaskLabels({
   }, [open]);
 
   async function handleApply(labelId: string) {
-    await labelService.applyToTask(workspaceId, projectId, taskId, labelId, token);
+    await labelService(client).applyToTask(workspaceId, projectId, taskId, labelId);
     setOpen(false);
     onUpdate();
   }
 
   async function handleRemove(labelId: string) {
-    await labelService.removeFromTask(workspaceId, projectId, taskId, labelId, token);
+    await labelService(client).removeFromTask(workspaceId, projectId, taskId, labelId);
     onUpdate();
   }
 

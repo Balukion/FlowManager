@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-12 shrink-0 items-center justify-end border-b bg-card px-4">
-          <NotificationPanel token={accessToken!} />
+          <NotificationPanel />
         </header>
         <main className="flex-1 overflow-auto bg-background p-6">{children}</main>
       </div>

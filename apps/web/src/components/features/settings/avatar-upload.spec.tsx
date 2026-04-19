@@ -7,12 +7,16 @@ const mockPresignAvatar = vi.fn();
 const mockUpdateAvatar = vi.fn();
 const mockDeleteAvatar = vi.fn();
 
+vi.mock("@web/hooks/use-api-client", () => ({
+  useApiClient: vi.fn(() => ({})),
+}));
+
 vi.mock("@web/services/user.service", () => ({
-  userService: {
-    presignAvatar: (...args: unknown[]) => mockPresignAvatar(...args),
-    updateAvatar: (...args: unknown[]) => mockUpdateAvatar(...args),
-    deleteAvatar: (...args: unknown[]) => mockDeleteAvatar(...args),
-  },
+  userService: vi.fn(() => ({
+    presignAvatar: mockPresignAvatar,
+    updateAvatar: mockUpdateAvatar,
+    deleteAvatar: mockDeleteAvatar,
+  })),
 }));
 
 // Simula o fetch para o PUT no S3
@@ -22,7 +26,6 @@ vi.stubGlobal("fetch", mockFetch);
 const defaultProps = {
   currentAvatarUrl: null,
   userName: "João Silva",
-  token: "fake-token",
   onUpdate: vi.fn(),
 };
 
@@ -109,7 +112,6 @@ describe("AvatarUpload", () => {
     await waitFor(() => {
       expect(mockPresignAvatar).toHaveBeenCalledWith(
         { content_type: "image/jpeg", file_size_bytes: file.size },
-        "fake-token",
       );
     });
 
@@ -123,7 +125,6 @@ describe("AvatarUpload", () => {
     await waitFor(() => {
       expect(mockUpdateAvatar).toHaveBeenCalledWith(
         "https://s3.amazonaws.com/bucket/avatar.jpg",
-        "fake-token",
       );
     });
 
@@ -195,7 +196,7 @@ describe("AvatarUpload", () => {
     await userEvent.click(screen.getByRole("button", { name: /remover/i }));
 
     await waitFor(() => {
-      expect(mockDeleteAvatar).toHaveBeenCalledWith("fake-token");
+      expect(mockDeleteAvatar).toHaveBeenCalledWith();
     });
 
     await waitFor(() => {

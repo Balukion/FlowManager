@@ -46,4 +46,11 @@ export class ProjectsRepository {
   async softDelete(id: string) {
     return prisma.project.update({ where: { id }, data: { deleted_at: new Date() } });
   }
+
+  async softDeleteByWorkspace(workspaceId: string) {
+    return prisma.project.updateMany({
+      where: { workspace_id: workspaceId, deleted_at: null },
+      data: { deleted_at: new Date() },
+    });
+  }
 }

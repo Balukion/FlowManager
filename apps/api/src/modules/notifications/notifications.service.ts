@@ -1,21 +1,17 @@
+import { getSafeLimit, paginateResult } from "@flowmanager/shared";
 import { NotFoundError } from "../../errors/index.js";
 import type { NotificationsRepository } from "./notifications.repository.js";
-
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 100;
 
 export class NotificationsService {
   constructor(private repo: NotificationsRepository) {}
 
   async listNotifications(userId: string, query: { limit?: number; cursor?: string }) {
-    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
+    const limit = getSafeLimit(query.limit);
 
-    const items = await this.repo.findByUser(userId, { limit, cursor: query.cursor });
-    const hasMore = items.length > limit;
-    const notifications = hasMore ? items.slice(0, limit) : items;
+    const rows = await this.repo.findByUser(userId, { limit, cursor: query.cursor });
+    const { items: notifications, next_cursor } = paginateResult(rows, limit);
 
     const unread_count = await this.repo.countUnread(userId);
-    const next_cursor = hasMore ? notifications[notifications.length - 1].id : undefined;
 
     return {
       data: { notifications },

@@ -4,17 +4,13 @@ import { generateToken, hashToken } from "../../lib/crypto.js";
 import { sendEmail } from "../../lib/resend.js";
 import { env } from "../../config/env.js";
 import { addHours, addDays } from "@flowmanager/shared";
+import { stripPassword } from "../../lib/user.js";
 import {
   BadRequestError,
   ConflictError,
   UnauthorizedError,
 } from "../../errors/index.js";
 import type { UserRepository, TokenRepository } from "./auth.repository.js";
-
-function stripPassword<T extends { password_hash?: string }>(user: T) {
-  const { password_hash: _, ...safe } = user;
-  return safe;
-}
 
 export class AuthService {
   constructor(
@@ -125,8 +121,7 @@ export class AuthService {
 
   async verifyEmail(token: string) {
     const tokenHash = hashToken(token);
-    const user = await this.userRepo["findByVerificationToken"]?.(tokenHash)
-      ?? await this._findUserByToken("email_verification_token", tokenHash);
+    const user = await this.userRepo.findByVerificationToken(tokenHash);
 
     if (!user) throw new BadRequestError("Token inválido", "INVALID_TOKEN");
     if (!user.email_verification_expires_at || user.email_verification_expires_at < new Date()) {
@@ -170,7 +165,7 @@ export class AuthService {
 
   async resetPassword(token: string, newPassword: string) {
     const tokenHash = hashToken(token);
-    const user = await this._findUserByToken("password_reset_token", tokenHash);
+    const user = await this.userRepo.findByPasswordResetToken(tokenHash);
 
     if (!user) throw new BadRequestError("Token inválido", "INVALID_TOKEN");
     if (!user.password_reset_expires_at || user.password_reset_expires_at < new Date()) {
@@ -201,23 +196,4 @@ export class AuthService {
 
     return { access_token, refresh_token: refreshToken };
   }
-
-  private async _findUserByToken(
-    field: "email_verification_token" | "password_reset_token",
-    tokenHash: string,
-  ) {
-    return prisma_findUserByTokenField(field, tokenHash);
-  }
-}
-
-// helpers de acesso direto ao prisma para buscas por token
-import { prisma } from "../../lib/prisma.js";
-
-async function prisma_findUserByTokenField(
-  field: "email_verification_token" | "password_reset_token",
-  tokenHash: string,
-) {
-  return prisma.user.findFirst({
-    where: { [field]: tokenHash, deleted_at: null },
-  });
 }

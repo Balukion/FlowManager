@@ -10,9 +10,9 @@ const makeNotification = (overrides = {}) => ({
   ...overrides,
 });
 
-const makeRepo = () => ({
+const makeNotificationsRepo = () => ({
   findPendingRetry: vi.fn().mockResolvedValue([]),
-  markSent: vi.fn().mockResolvedValue(undefined),
+  markAsSent: vi.fn().mockResolvedValue(undefined),
   incrementAttempt: vi.fn().mockResolvedValue(undefined),
 });
 
@@ -23,16 +23,16 @@ const makeLogger = () => ({
 
 describe("RetryNotificationsJob", () => {
   let job: RetryNotificationsJob;
-  let repo: ReturnType<typeof makeRepo>;
+  let notificationsRepo: ReturnType<typeof makeNotificationsRepo>;
   let sendEmail: ReturnType<typeof vi.fn>;
   let logger: ReturnType<typeof makeLogger>;
 
   beforeEach(() => {
-    repo = makeRepo();
+    notificationsRepo = makeNotificationsRepo();
     sendEmail = vi.fn().mockResolvedValue(undefined);
     logger = makeLogger();
     job = new RetryNotificationsJob(
-      repo as any,
+      notificationsRepo as any,
       sendEmail,
       logger as any,
       "0 * * * *",
@@ -46,11 +46,11 @@ describe("RetryNotificationsJob", () => {
 
   it("should query pending notifications with max 3 attempts", async () => {
     await job.run();
-    expect(repo.findPendingRetry).toHaveBeenCalledWith(3);
+    expect(notificationsRepo.findPendingRetry).toHaveBeenCalledWith(3);
   });
 
   it("should send email for each pending notification", async () => {
-    repo.findPendingRetry.mockResolvedValue([makeNotification()]);
+    notificationsRepo.findPendingRetry.mockResolvedValue([makeNotification()]);
 
     await job.run();
 
@@ -62,29 +62,29 @@ describe("RetryNotificationsJob", () => {
   });
 
   it("should mark notification as sent on success", async () => {
-    repo.findPendingRetry.mockResolvedValue([makeNotification()]);
+    notificationsRepo.findPendingRetry.mockResolvedValue([makeNotification()]);
 
     await job.run();
 
-    expect(repo.markSent).toHaveBeenCalledWith("notif-1");
-    expect(repo.incrementAttempt).not.toHaveBeenCalled();
+    expect(notificationsRepo.markAsSent).toHaveBeenCalledWith("notif-1");
+    expect(notificationsRepo.incrementAttempt).not.toHaveBeenCalled();
   });
 
   it("should increment attempt and not mark sent on send failure", async () => {
     sendEmail.mockRejectedValue(new Error("SMTP timeout"));
-    repo.findPendingRetry.mockResolvedValue([makeNotification()]);
+    notificationsRepo.findPendingRetry.mockResolvedValue([makeNotification()]);
 
     await job.run();
 
-    expect(repo.incrementAttempt).toHaveBeenCalledWith("notif-1", "SMTP timeout");
-    expect(repo.markSent).not.toHaveBeenCalled();
+    expect(notificationsRepo.incrementAttempt).toHaveBeenCalledWith("notif-1", "SMTP timeout");
+    expect(notificationsRepo.markAsSent).not.toHaveBeenCalled();
   });
 
   it("should log sent and failed counts", async () => {
     sendEmail
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("fail"));
-    repo.findPendingRetry.mockResolvedValue([
+    notificationsRepo.findPendingRetry.mockResolvedValue([
       makeNotification({ id: "n1" }),
       makeNotification({ id: "n2" }),
     ]);

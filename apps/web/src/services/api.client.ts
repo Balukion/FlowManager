@@ -76,3 +76,19 @@ export const api = {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     }),
 };
+
+export type AuthenticatedClient = {
+  get: <T>(path: string) => Promise<T>;
+  post: <T>(path: string, data: unknown) => Promise<T>;
+  patch: <T>(path: string, data: unknown) => Promise<T>;
+  delete: <T>(path: string) => Promise<T>;
+};
+
+export function createAuthenticatedClient(token: string): AuthenticatedClient {
+  return {
+    get: <T>(path: string) => api.get<T>(path, token),
+    post: <T>(path: string, data: unknown) => api.post<T>(path, data, token),
+    patch: <T>(path: string, data: unknown) => api.patch<T>(path, data, token),
+    delete: <T>(path: string) => api.delete<T>(path, token),
+  };
+}

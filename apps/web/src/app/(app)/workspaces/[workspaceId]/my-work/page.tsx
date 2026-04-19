@@ -4,7 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { stepService } from "@web/services/step.service";
 import { useAuthStore } from "@web/stores/auth.store";
+import { useApiClient } from "@web/hooks/use-api-client";
 import { MyStepsList } from "@web/components/features/steps/my-steps-list";
+import type { ApiResponse } from "@flowmanager/types";
 
 interface AssignedStep {
   id: string;
@@ -23,14 +25,15 @@ interface AssignedStep {
 export default function MyWorkPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const { accessToken } = useAuthStore();
+  const client = useApiClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ["my-steps", workspaceId],
-    queryFn: () => stepService.listAssigned(workspaceId, accessToken!),
+    queryFn: () => stepService(client).listAssigned(workspaceId),
     enabled: !!workspaceId && !!accessToken,
   });
 
-  const steps: AssignedStep[] = (data as { data: { steps: AssignedStep[] } } | undefined)?.data?.steps ?? [];
+  const steps: AssignedStep[] = (data as ApiResponse<{ steps: AssignedStep[] }> | undefined)?.data?.steps ?? [];
 
   return (
     <div className="space-y-6">

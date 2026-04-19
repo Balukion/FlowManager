@@ -6,30 +6,32 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { workspaceService } from "@web/services/workspace.service";
 import { useAuthStore } from "@web/stores/auth.store";
 import { useWorkspaceStore } from "@web/stores/workspace.store";
+import { useApiClient } from "@web/hooks/use-api-client";
 import { WorkspaceCard } from "@web/components/features/workspaces/workspace-card";
 import { CreateWorkspaceForm } from "@web/components/features/workspaces/create-workspace-form";
 import { Button } from "@web/components/ui/button";
-import type { Workspace } from "@flowmanager/types";
+import type { Workspace, ApiResponse } from "@flowmanager/types";
 
 export default function WorkspacesPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { accessToken } = useAuthStore();
   const { setCurrentWorkspace } = useWorkspaceStore();
+  const client = useApiClient();
   const [showForm, setShowForm] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["workspaces"],
-    queryFn: () => workspaceService.list(accessToken!),
+    queryFn: () => workspaceService(client).list(),
     enabled: !!accessToken,
   });
 
   const workspaces: Workspace[] =
-    (data as { data: { workspaces: Workspace[] } } | undefined)?.data?.workspaces ?? [];
+    (data as ApiResponse<{ workspaces: Workspace[] }> | undefined)?.data?.workspaces ?? [];
 
   const createMutation = useMutation({
     mutationFn: (formData: { name: string; description?: string }) =>
-      workspaceService.create(formData, accessToken!),
+      workspaceService(client).create(formData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workspaces"] });
       setShowForm(false);

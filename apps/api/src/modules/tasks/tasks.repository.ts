@@ -128,4 +128,35 @@ export class TasksRepository {
       select: { id: true },
     });
   }
+
+  async findTasksDueForReminder(cutoff: Date) {
+    const now = new Date();
+    return prisma.task.findMany({
+      where: {
+        deleted_at: null,
+        status: { not: "DONE" },
+        due_reminder_sent_at: null,
+        deadline: { gte: now, lte: cutoff },
+      },
+      include: {
+        assignee: { select: { id: true } },
+        task_watchers: { select: { user_id: true } },
+        project: { select: { workspace_id: true } },
+      },
+    });
+  }
+
+  async markReminderSent(taskId: string) {
+    return prisma.task.update({
+      where: { id: taskId },
+      data: { due_reminder_sent_at: new Date() },
+    });
+  }
+
+  async softDeleteByWorkspace(workspaceId: string) {
+    return prisma.task.updateMany({
+      where: { project: { workspace_id: workspaceId }, deleted_at: null },
+      data: { deleted_at: new Date() },
+    });
+  }
 }
