@@ -44,9 +44,18 @@ export class StepsRepository {
     title?: string;
     description?: string | null;
     deadline?: Date | null;
-    order?: number;
   }) {
     return prisma.step.update({ where: { id }, data });
+  }
+
+  async updateOrder(id: string, order: number) {
+    return prisma.step.updateMany({ where: { id, deleted_at: null }, data: { order } });
+  }
+
+  async countByTask(taskId: string, ids: string[]): Promise<number> {
+    return prisma.step.count({
+      where: { id: { in: ids }, task_id: taskId, deleted_at: null },
+    });
   }
 
   async updateStatus(id: string, status: StepStatus) {

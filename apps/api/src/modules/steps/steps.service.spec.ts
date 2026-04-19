@@ -13,7 +13,9 @@ const mockRepo = {
   findById: vi.fn(),
   findByTask: vi.fn(),
   findAssignedToUser: vi.fn(),
+  countByTask: vi.fn(),
   update: vi.fn(),
+  updateOrder: vi.fn(),
   updateStatus: vi.fn(),
   softDelete: vi.fn(),
   findActiveAssignment: vi.fn(),
@@ -264,15 +266,95 @@ describe("deleteStep — reordenação dos passos restantes", () => {
     mockRepo.findById.mockResolvedValue(step);
     mockRepo.softDelete.mockResolvedValue(undefined);
     mockRepo.findByTask.mockResolvedValue(restantes);
-    mockRepo.update.mockResolvedValue(undefined);
+    mockRepo.updateOrder.mockResolvedValue(undefined);
 
     await service.deleteStep("ws-1", "proj-1", TASK_ID, STEP_ID, USER_ID);
 
-    // Deve ter chamado update para reordenar os 3 passos restantes
-    expect(mockRepo.update).toHaveBeenCalledTimes(3);
-    expect(mockRepo.update).toHaveBeenCalledWith("step-1", { order: 1 });
-    expect(mockRepo.update).toHaveBeenCalledWith("step-3", { order: 2 });
-    expect(mockRepo.update).toHaveBeenCalledWith("step-4", { order: 3 });
+    // Deve ter chamado updateOrder para reordenar os 3 passos restantes
+    expect(mockRepo.updateOrder).toHaveBeenCalledTimes(3);
+    expect(mockRepo.updateOrder).toHaveBeenCalledWith("step-1", 1);
+    expect(mockRepo.updateOrder).toHaveBeenCalledWith("step-3", 2);
+    expect(mockRepo.updateOrder).toHaveBeenCalledWith("step-4", 3);
+  });
+});
+
+// ─── reorderSteps — validação de escopo ──────────────────────────────────────
+
+describe("reorderSteps — validação de escopo", () => {
+  const WORKSPACE_ID = "ws-1";
+  const PROJECT_ID = "proj-1";
+  const TASK_ID = "task-1";
+  const USER_ID = "user-1";
+
+  beforeEach(() => {
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID });
+    const task = makeTask({ id: TASK_ID, project_id: PROJECT_ID });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "ADMIN" });
+    mockTasksRepo.findById.mockResolvedValue(task);
+  });
+
+  it("deve reordenar quando todos os IDs pertencem à tarefa", async () => {
+    mockRepo.countByTask.mockResolvedValue(2);
+    mockRepo.updateOrder.mockResolvedValue(undefined);
+
+    await service.reorderSteps(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, ["s1", "s2"]);
+
+    expect(mockRepo.updateOrder).toHaveBeenCalledWith("s1", 1);
+    expect(mockRepo.updateOrder).toHaveBeenCalledWith("s2", 2);
+  });
+
+  it("deve lançar BadRequestError se algum ID não pertence à tarefa", async () => {
+    mockRepo.countByTask.mockResolvedValue(1); // enviou 2, só 1 é dessa tarefa
+
+    await expect(
+      service.reorderSteps(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, ["s1", "s2"]),
+    ).rejects.toThrow(BadRequestError);
+  });
+
+  it("deve lançar BadRequestError se IDs de outra tarefa são enviados", async () => {
+    mockRepo.countByTask.mockResolvedValue(0);
+
+    await expect(
+      service.reorderSteps(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, ["outro-task-step"]),
+    ).rejects.toThrow(BadRequestError);
+  });
+});
+
+// ─── createStep / updateStep — validação de deadline ─────────────────────────
+
+describe("createStep — validação de deadline", () => {
+  const WORKSPACE_ID = "ws-1";
+  const PROJECT_ID = "proj-1";
+  const TASK_ID = "task-1";
+  const USER_ID = "user-1";
+
+  beforeEach(() => {
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "ADMIN" });
+    mockTasksRepo.findById.mockResolvedValue(makeTask({ id: TASK_ID, project_id: PROJECT_ID }));
+  });
+
+  it("deve lançar BadRequestError para deadline com string inválida", async () => {
+    await expect(
+      service.createStep(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, {
+        title: "Passo",
+        deadline: "nao-e-uma-data",
+      }),
+    ).rejects.toThrow(BadRequestError);
+  });
+
+  it("deve aceitar deadline null sem erro", async () => {
+    mockRepo.findLastOrder.mockResolvedValue(null);
+    mockRepo.create.mockResolvedValue(makeStep());
+
+    await expect(
+      service.createStep(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, {
+        title: "Passo",
+        deadline: null,
+      }),
+    ).resolves.not.toThrow();
   });
 });
 

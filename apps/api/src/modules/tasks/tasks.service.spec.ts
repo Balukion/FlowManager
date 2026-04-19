@@ -20,6 +20,7 @@ const mockRepo = {
   findByProject: vi.fn(),
   update: vi.fn(),
   updateOrder: vi.fn(),
+  countByProject: vi.fn(),
   findStepsByTask: vi.fn(),
   findStepsExceedingDeadline: vi.fn(),
   softDelete: vi.fn(),
@@ -264,6 +265,109 @@ describe("updateStatus — notificações TASK_STATUS_CHANGED", () => {
     await expect(
       service.updateStatus(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, "DONE"),
     ).resolves.not.toThrow();
+  });
+});
+
+// ─── reorderTasks — validação de escopo ──────────────────────────────────────
+
+describe("reorderTasks — validação de escopo", () => {
+  const WORKSPACE_ID = "ws-1";
+  const PROJECT_ID = "proj-1";
+  const USER_ID = "user-1";
+
+  beforeEach(() => {
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "ADMIN" });
+  });
+
+  it("deve reordenar quando todos os IDs pertencem ao projeto", async () => {
+    mockRepo.countByProject.mockResolvedValue(3);
+    mockRepo.updateOrder.mockResolvedValue(undefined);
+
+    await service.reorderTasks(WORKSPACE_ID, PROJECT_ID, USER_ID, ["t1", "t2", "t3"]);
+
+    expect(mockRepo.updateOrder).toHaveBeenCalledTimes(3);
+    expect(mockRepo.updateOrder).toHaveBeenCalledWith("t1", 1);
+    expect(mockRepo.updateOrder).toHaveBeenCalledWith("t2", 2);
+    expect(mockRepo.updateOrder).toHaveBeenCalledWith("t3", 3);
+  });
+
+  it("deve lançar BadRequestError se algum ID não pertence ao projeto", async () => {
+    mockRepo.countByProject.mockResolvedValue(2); // enviou 3, só 2 são desse projeto
+
+    await expect(
+      service.reorderTasks(WORKSPACE_ID, PROJECT_ID, USER_ID, ["t1", "t2", "t3"]),
+    ).rejects.toThrow(BadRequestError);
+  });
+
+  it("deve lançar BadRequestError se IDs de outro workspace são enviados", async () => {
+    mockRepo.countByProject.mockResolvedValue(0); // nenhum pertence ao projeto
+
+    await expect(
+      service.reorderTasks(WORKSPACE_ID, PROJECT_ID, USER_ID, ["outro-ws-task"]),
+    ).rejects.toThrow(BadRequestError);
+  });
+});
+
+// ─── createTask / updateTask — validação de deadline ─────────────────────────
+
+describe("createTask — validação de deadline", () => {
+  const WORKSPACE_ID = "ws-1";
+  const PROJECT_ID = "proj-1";
+  const USER_ID = "user-1";
+
+  beforeEach(() => {
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "ADMIN" });
+  });
+
+  it("deve lançar BadRequestError para deadline com string inválida", async () => {
+    await expect(
+      service.createTask(WORKSPACE_ID, PROJECT_ID, USER_ID, {
+        title: "T",
+        priority: "LOW",
+        deadline: "nao-e-data",
+      }),
+    ).rejects.toThrow(BadRequestError);
+  });
+
+  it("deve aceitar deadline null sem erro", async () => {
+    mockRepo.findLastNumber.mockResolvedValue(null);
+    mockRepo.findLastOrder.mockResolvedValue(null);
+    mockRepo.create.mockResolvedValue(makeTask());
+
+    await expect(
+      service.createTask(WORKSPACE_ID, PROJECT_ID, USER_ID, {
+        title: "T",
+        priority: "LOW",
+        deadline: null,
+      }),
+    ).resolves.not.toThrow();
+  });
+});
+
+describe("updateTask — validação de deadline", () => {
+  const WORKSPACE_ID = "ws-1";
+  const PROJECT_ID = "proj-1";
+  const USER_ID = "user-1";
+  const TASK_ID = "task-1";
+
+  beforeEach(() => {
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: USER_ID });
+    mockWorkspacesRepo.findById.mockResolvedValue(workspace);
+    mockWorkspacesRepo.findMember.mockResolvedValue({ role: "ADMIN" });
+    mockRepo.findById.mockResolvedValue(makeTask({ id: TASK_ID, project_id: PROJECT_ID }));
+    mockRepo.findStepsExceedingDeadline.mockResolvedValue([]);
+  });
+
+  it("deve lançar BadRequestError para deadline com string inválida", async () => {
+    await expect(
+      service.updateTask(WORKSPACE_ID, PROJECT_ID, TASK_ID, USER_ID, {
+        deadline: "invalido",
+      }),
+    ).rejects.toThrow(BadRequestError);
   });
 });
 

@@ -82,7 +82,13 @@ export class TasksRepository {
   }
 
   async updateOrder(id: string, order: number) {
-    return prisma.task.update({ where: { id }, data: { order } });
+    return prisma.task.updateMany({ where: { id, deleted_at: null }, data: { order } });
+  }
+
+  async countByProject(projectId: string, ids: string[]): Promise<number> {
+    return prisma.task.count({
+      where: { id: { in: ids }, project_id: projectId, deleted_at: null },
+    });
   }
 
   async softDelete(id: string) {

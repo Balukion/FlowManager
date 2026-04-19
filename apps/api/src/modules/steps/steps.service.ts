@@ -8,6 +8,12 @@ import type { WorkspacesRepository } from "../workspaces/workspaces.repository.j
 import type { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
 import type { NotificationsRepository } from "../notifications/notifications.repository.js";
 
+function assertValidDeadline(deadline: string | null | undefined): void {
+  if (deadline && isNaN(new Date(deadline).getTime())) {
+    throw new BadRequestError("Formato de data inválido", "INVALID_DATE");
+  }
+}
+
 export class StepsService {
   private guard: WorkspaceGuard;
 
@@ -29,6 +35,7 @@ export class StepsService {
     userId: string,
     data: { title: string; deadline?: string | null },
   ) {
+    assertValidDeadline(data.deadline);
     await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const task = await this.tasksRepo.findById(taskId);
@@ -82,6 +89,7 @@ export class StepsService {
     userId: string,
     data: { title?: string; description?: string | null; deadline?: string | null },
   ) {
+    assertValidDeadline(data.deadline);
     await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const task = await this.tasksRepo.findById(taskId);
@@ -213,8 +221,13 @@ export class StepsService {
   ) {
     await this.guard.requireAdminOrOwner(workspaceId, userId);
 
+    const validCount = await this.repo.countByTask(taskId, order);
+    if (validCount !== order.length) {
+      throw new BadRequestError("IDs de passos inválidos para esta tarefa", "INVALID_STEP_IDS");
+    }
+
     await Promise.all(
-      order.map((stepId, index) => this.repo.update(stepId, { order: index + 1 })),
+      order.map((stepId, index) => this.repo.updateOrder(stepId, index + 1)),
     );
   }
 
@@ -243,7 +256,7 @@ export class StepsService {
 
     const remaining = await this.repo.findByTask(taskId);
     await Promise.all(
-      remaining.map((s, index) => this.repo.update(s.id, { order: index + 1 })),
+      remaining.map((s, index) => this.repo.updateOrder(s.id, index + 1)),
     );
 
     await this.activityRepo?.createLog({

@@ -8,6 +8,12 @@ import type { WorkspacesRepository } from "../workspaces/workspaces.repository.j
 import type { ActivityLogsRepository } from "../activity-logs/activity-logs.repository.js";
 import type { NotificationsRepository } from "../notifications/notifications.repository.js";
 
+function assertValidDeadline(deadline: string | null | undefined): void {
+  if (deadline && isNaN(new Date(deadline).getTime())) {
+    throw new BadRequestError("Formato de data inválido", "INVALID_DATE");
+  }
+}
+
 export class TasksService {
   private guard: WorkspaceGuard;
 
@@ -26,6 +32,7 @@ export class TasksService {
     userId: string,
     data: { title: string; priority: Priority; description?: string | null; deadline?: string | null },
   ) {
+    assertValidDeadline(data.deadline);
     await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const last = await this.repo.findLastNumber(projectId);
@@ -76,6 +83,7 @@ export class TasksService {
     userId: string,
     data: { title?: string; description?: string | null; priority?: Priority; deadline?: string | null },
   ) {
+    assertValidDeadline(data.deadline);
     await this.guard.requireAdminOrOwner(workspaceId, userId);
 
     const task = await this.repo.findById(taskId);
@@ -146,6 +154,11 @@ export class TasksService {
     order: string[],
   ) {
     await this.guard.requireAdminOrOwner(workspaceId, userId);
+
+    const validCount = await this.repo.countByProject(projectId, order);
+    if (validCount !== order.length) {
+      throw new BadRequestError("IDs de tarefas inválidos para este projeto", "INVALID_TASK_IDS");
+    }
 
     await Promise.all(
       order.map((taskId, index) => this.repo.updateOrder(taskId, index + 1)),
