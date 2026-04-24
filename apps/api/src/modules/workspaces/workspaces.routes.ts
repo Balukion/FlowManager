@@ -15,6 +15,7 @@ export async function workspacesRoutes(app: FastifyInstance) {
   app.post("/workspaces", { ...auth, schema: createWorkspaceSchema }, controller.createWorkspace);
   app.get("/workspaces", auth, controller.listWorkspaces);
   app.get("/workspaces/:id", auth, controller.getWorkspace);
+  app.get("/workspaces/:id/me", auth, controller.getWorkspaceMember);
   app.patch("/workspaces/:id", { ...auth, schema: updateWorkspaceSchema }, controller.updateWorkspace);
   app.delete("/workspaces/:id", auth, controller.deleteWorkspace);
 

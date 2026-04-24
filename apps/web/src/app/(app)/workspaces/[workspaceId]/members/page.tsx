@@ -48,7 +48,7 @@ export default function MembersPage() {
   const { data: invitationsData } = useQuery({
     queryKey: ["invitations", workspaceId],
     queryFn: () => invitationService(client).list(workspaceId),
-    enabled: !!client,
+    enabled: !!client && isAdminOrOwner,
   });
 
   const members: MemberWithUser[] =

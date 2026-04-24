@@ -6,24 +6,26 @@ import { getQueryClient } from "@web/lib/query-client";
 import type { AuthResponse } from "@flowmanager/types";
 
 export function useAuth() {
-  const { user, accessToken, setAuth, clearAuth } = useAuthStore();
+  const { user, accessToken, refreshToken, setAuth, clearAuth } = useAuthStore();
   const { setCurrentWorkspace } = useWorkspaceStore();
 
   async function login(email: string, password: string) {
     const response = (await authService.login(email, password)) as AuthResponse;
-    setAuth(response.data.user, response.data.access_token);
+    setAuth(response.data.user, response.data.access_token, response.data.refresh_token);
     return response;
   }
 
   async function register(name: string, email: string, password: string) {
     const response = (await authService.register(name, email, password)) as AuthResponse;
-    setAuth(response.data.user, response.data.access_token);
+    setAuth(response.data.user, response.data.access_token, response.data.refresh_token);
     return response;
   }
 
   async function logout() {
-    if (accessToken) {
-      await createAuthenticatedClient(accessToken).post("/auth/logout", {}).catch(() => {});
+    if (accessToken && refreshToken) {
+      await createAuthenticatedClient(accessToken)
+        .post("/auth/logout", { refresh_token: refreshToken })
+        .catch(() => {});
     }
     clearAuth();
     setCurrentWorkspace(null);

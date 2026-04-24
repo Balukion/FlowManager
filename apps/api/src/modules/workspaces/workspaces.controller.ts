@@ -37,6 +37,14 @@ export async function getWorkspace(
   return reply.status(200).send({ data: result });
 }
 
+export async function getWorkspaceMember(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply,
+) {
+  const result = await service.getWorkspaceMember(request.params.id, request.userId);
+  return reply.status(200).send({ data: result });
+}
+
 export async function updateWorkspace(
   request: FastifyRequest<{ Params: { id: string }; Body: { name?: string; description?: string | null; color?: string | null } }>,
   reply: FastifyReply,

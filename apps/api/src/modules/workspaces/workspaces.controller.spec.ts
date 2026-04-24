@@ -284,6 +284,72 @@ describe("GET /workspaces/:id", () => {
   });
 });
 
+// ─── GET /workspaces/:id/me ───────────────────────────────────────────────────
+
+describe("GET /workspaces/:id/me", () => {
+  it("deve retornar o membership do usuário autenticado no workspace", async () => {
+    const { access_token, user } = await registrarUsuario({ email: "me@test.com" });
+    const criarResponse = await criarWorkspace(access_token, {
+      name: "Workspace com membership",
+    });
+    const workspaceId = criarResponse.json().data.workspace.id;
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspaceId}/me`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.member).toMatchObject({
+      workspace_id: workspaceId,
+      user_id: user.id,
+      role: "ADMIN",
+    });
+  });
+
+  it("deve retornar 403 quando o usuário não participa do workspace", async () => {
+    const { access_token: tokenDono } = await registrarUsuario({
+      email: "dono-me@test.com",
+    });
+    const { access_token: tokenOutro } = await registrarUsuario({
+      email: "outro-me@test.com",
+    });
+
+    const criarResponse = await criarWorkspace(tokenDono);
+    const workspaceId = criarResponse.json().data.workspace.id;
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspaceId}/me`,
+      headers: { authorization: `Bearer ${tokenOutro}` },
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it("deve retornar 404 quando o workspace não existe", async () => {
+    const { access_token } = await registrarUsuario({ email: "missing-me@test.com" });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/workspaces/id-que-nao-existe/me",
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("deve retornar 401 quando não há token", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/workspaces/qualquer-id/me",
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+});
+
 // ─── PATCH /workspaces/:id ────────────────────────────────────────────────────
 
 describe("PATCH /workspaces/:id", () => {

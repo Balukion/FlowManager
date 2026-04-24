@@ -10,7 +10,7 @@ import { AvatarUpload } from "@web/components/features/settings/avatar-upload";
 import type { ApiResponse } from "@flowmanager/types";
 
 export default function SettingsPage() {
-  const { user, accessToken, setAuth } = useAuthStore();
+  const { user, accessToken, refreshToken, setAuth } = useAuthStore();
   const queryClient = useQueryClient();
   const client = useApiClient();
 
@@ -19,7 +19,9 @@ export default function SettingsPage() {
       userService(client).updateMe(data),
     onSuccess: (data) => {
       const updated = (data as ApiResponse<{ user: typeof user }>)?.data?.user;
-      if (updated && accessToken) setAuth(updated, accessToken);
+      if (updated && accessToken && refreshToken) {
+        setAuth(updated, accessToken, refreshToken);
+      }
       queryClient.invalidateQueries({ queryKey: ["me"] });
     },
   });
@@ -30,8 +32,8 @@ export default function SettingsPage() {
   });
 
   function handleAvatarUpdate(url: string | null) {
-    if (!user || !accessToken) return;
-    setAuth({ ...user, avatar_url: url }, accessToken);
+    if (!user || !accessToken || !refreshToken) return;
+    setAuth({ ...user, avatar_url: url }, accessToken, refreshToken);
     queryClient.invalidateQueries({ queryKey: ["me"] });
   }
 

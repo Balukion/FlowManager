@@ -35,7 +35,7 @@ const mockUser = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useAuthStore.setState({ user: null, accessToken: null });
+  useAuthStore.setState({ user: null, accessToken: null, refreshToken: null });
   useWorkspaceStore.setState({ currentWorkspace: null });
 });
 
@@ -60,10 +60,11 @@ describe("useAuth", () => {
     expect(authService.login).toHaveBeenCalledWith("joao@test.com", "senha123");
     expect(useAuthStore.getState().user).toEqual(mockUser);
     expect(useAuthStore.getState().accessToken).toBe("new-tok");
+    expect(useAuthStore.getState().refreshToken).toBe("ref");
   });
 
-  it("logout() should POST to /auth/logout and clear the store", async () => {
-    useAuthStore.setState({ user: mockUser, accessToken: "tok" });
+  it("logout() should POST to /auth/logout with refresh token and clear the store", async () => {
+    useAuthStore.setState({ user: mockUser, accessToken: "tok", refreshToken: "ref" });
     mockPost.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useAuth());
@@ -71,14 +72,15 @@ describe("useAuth", () => {
       await result.current.logout();
     });
 
-    expect(mockPost).toHaveBeenCalledWith("/auth/logout", {});
+    expect(mockPost).toHaveBeenCalledWith("/auth/logout", { refresh_token: "ref" });
     expect(useAuthStore.getState().user).toBeNull();
     expect(useAuthStore.getState().accessToken).toBeNull();
+    expect(useAuthStore.getState().refreshToken).toBeNull();
   });
 
   it("logout() should clear the query cache and current workspace", async () => {
     const mockWorkspace = { id: "ws-1", name: "Workspace A" } as any;
-    useAuthStore.setState({ user: mockUser, accessToken: "tok" });
+    useAuthStore.setState({ user: mockUser, accessToken: "tok", refreshToken: "ref" });
     useWorkspaceStore.setState({ currentWorkspace: mockWorkspace });
     mockPost.mockResolvedValue(undefined);
 

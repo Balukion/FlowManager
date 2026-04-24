@@ -88,7 +88,7 @@ function AcceptInvitationContent() {
     setLoginLoading(true);
     try {
       const res = await authService.login(loginEmail, loginPassword) as AuthResponse;
-      setAuth(res.data.user, res.data.access_token);
+      setAuth(res.data.user, res.data.access_token, res.data.refresh_token);
       await acceptInvitation(res.data.access_token);
     } catch (err: unknown) {
       setLoginError(getErrorMessage(err, "Email ou senha inválidos"));
@@ -103,7 +103,7 @@ function AcceptInvitationContent() {
     setRegisterLoading(true);
     try {
       const res = await authService.register(registerName, registerEmail, registerPassword) as AuthResponse;
-      setAuth(res.data.user, res.data.access_token);
+      setAuth(res.data.user, res.data.access_token, res.data.refresh_token);
       await acceptInvitation(res.data.access_token);
     } catch (err: unknown) {
       setRegisterError(getErrorMessage(err, "Erro ao criar conta"));

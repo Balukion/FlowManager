@@ -57,6 +57,16 @@ export class WorkspacesService {
     return { workspace };
   }
 
+  async getWorkspaceMember(workspaceId: string, userId: string) {
+    const workspace = await this.repo.findById(workspaceId);
+    if (!workspace) throw new NotFoundError("Workspace não encontrado");
+
+    const member = await this.repo.findMember(workspaceId, userId);
+    if (!member) throw new ForbiddenError("Acesso negado ao workspace");
+
+    return { member };
+  }
+
   async updateWorkspace(
     workspaceId: string,
     userId: string,

@@ -49,6 +49,52 @@ beforeEach(() => {
   );
 });
 
+// ─── getWorkspaceMember ───────────────────────────────────────────────────────
+
+describe("getWorkspaceMember", () => {
+  const WORKSPACE_ID = "ws-1";
+  const USER_ID = "user-1";
+
+  it("deve retornar o membro atual quando usuário participa do workspace", async () => {
+    const workspace = makeWorkspace({ id: WORKSPACE_ID, owner_id: "owner-1" });
+    const member = {
+      id: "member-1",
+      workspace_id: WORKSPACE_ID,
+      user_id: USER_ID,
+      role: "ADMIN",
+      position: null,
+      last_seen_at: null,
+      joined_at: new Date("2026-01-01T00:00:00.000Z"),
+    };
+
+    mockRepo.findById.mockResolvedValue(workspace);
+    mockRepo.findMember.mockResolvedValue(member);
+
+    await expect(service.getWorkspaceMember(WORKSPACE_ID, USER_ID)).resolves.toEqual({
+      member,
+    });
+  });
+
+  it("deve lançar NotFoundError quando o workspace não existe", async () => {
+    mockRepo.findById.mockResolvedValue(null);
+
+    await expect(service.getWorkspaceMember(WORKSPACE_ID, USER_ID)).rejects.toThrow(
+      NotFoundError,
+    );
+  });
+
+  it("deve lançar ForbiddenError quando usuário não participa do workspace", async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeWorkspace({ id: WORKSPACE_ID, owner_id: "owner-1" }),
+    );
+    mockRepo.findMember.mockResolvedValue(null);
+
+    await expect(service.getWorkspaceMember(WORKSPACE_ID, USER_ID)).rejects.toThrow(
+      ForbiddenError,
+    );
+  });
+});
+
 // ─── deleteWorkspace ──────────────────────────────────────────────────────────
 
 describe("deleteWorkspace", () => {

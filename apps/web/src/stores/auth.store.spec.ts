@@ -13,29 +13,37 @@ const mockUser: PublicUser = {
 };
 
 beforeEach(() => {
-  useAuthStore.setState({ user: null, accessToken: null, _hasHydrated: false });
+  useAuthStore.setState({
+    user: null,
+    accessToken: null,
+    refreshToken: null,
+    _hasHydrated: false,
+  });
 });
 
 describe("useAuthStore", () => {
-  it("should start with null user and token", () => {
-    const { user, accessToken } = useAuthStore.getState();
+  it("should start with null user and tokens", () => {
+    const { user, accessToken, refreshToken } = useAuthStore.getState();
     expect(user).toBeNull();
     expect(accessToken).toBeNull();
+    expect(refreshToken).toBeNull();
   });
 
-  it("setAuth should set user and accessToken", () => {
-    useAuthStore.getState().setAuth(mockUser, "access-token-123");
-    const { user, accessToken } = useAuthStore.getState();
+  it("setAuth should set user, accessToken and refreshToken", () => {
+    useAuthStore.getState().setAuth(mockUser, "access-token-123", "refresh-token-123");
+    const { user, accessToken, refreshToken } = useAuthStore.getState();
     expect(user).toEqual(mockUser);
     expect(accessToken).toBe("access-token-123");
+    expect(refreshToken).toBe("refresh-token-123");
   });
 
-  it("clearAuth should reset user and token to null", () => {
-    useAuthStore.getState().setAuth(mockUser, "token");
+  it("clearAuth should reset user and tokens to null", () => {
+    useAuthStore.getState().setAuth(mockUser, "token", "refresh");
     useAuthStore.getState().clearAuth();
-    const { user, accessToken } = useAuthStore.getState();
+    const { user, accessToken, refreshToken } = useAuthStore.getState();
     expect(user).toBeNull();
     expect(accessToken).toBeNull();
+    expect(refreshToken).toBeNull();
   });
 
   it("_hasHydrated should start as false", () => {
@@ -48,7 +56,7 @@ describe("useAuthStore", () => {
   });
 
   it("isAuthenticated is true when user and token are set", () => {
-    useAuthStore.getState().setAuth(mockUser, "token");
+    useAuthStore.getState().setAuth(mockUser, "token", "refresh");
     const { user, accessToken } = useAuthStore.getState();
     expect(user !== null && accessToken !== null).toBe(true);
   });
