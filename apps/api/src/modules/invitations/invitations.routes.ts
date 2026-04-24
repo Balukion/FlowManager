@@ -1,6 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import * as controller from "./invitations.controller.js";
-import { createInvitationSchema } from "./invitations.schema.js";
+import {
+  acceptInvitationSchema,
+  cancelInvitationSchema,
+  createInvitationSchema,
+  declineInvitationSchema,
+  getInvitationPreviewSchema,
+  listInvitationsSchema,
+  resendInvitationSchema,
+} from "./invitations.schema.js";
 
 export async function invitationsRoutes(app: FastifyInstance) {
   const auth = { preHandler: [app.authenticate] };
@@ -21,14 +29,18 @@ export async function invitationsRoutes(app: FastifyInstance) {
     },
     controller.createInvitation,
   );
-  app.get("/workspaces/:id/invitations", auth, controller.listInvitations);
+  app.get("/workspaces/:id/invitations", { ...auth, schema: listInvitationsSchema }, controller.listInvitations);
   app.delete(
     "/workspaces/:id/invitations/:invitationId",
-    auth,
+    { ...auth, schema: cancelInvitationSchema },
     controller.cancelInvitation,
   );
-  app.post("/workspaces/:id/invitations/:invitationId/resend", auth, controller.resendInvitation);
-  app.get("/invitations/preview", controller.getInvitationPreview);
-  app.post("/invitations/:token/accept", auth, controller.acceptInvitation);
-  app.post("/invitations/:token/decline", auth, controller.declineInvitation);
+  app.post(
+    "/workspaces/:id/invitations/:invitationId/resend",
+    { ...auth, schema: resendInvitationSchema },
+    controller.resendInvitation,
+  );
+  app.get("/invitations/preview", { schema: getInvitationPreviewSchema }, controller.getInvitationPreview);
+  app.post("/invitations/:token/accept", { ...auth, schema: acceptInvitationSchema }, controller.acceptInvitation);
+  app.post("/invitations/:token/decline", { ...auth, schema: declineInvitationSchema }, controller.declineInvitation);
 }

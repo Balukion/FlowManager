@@ -90,7 +90,7 @@ flowmanager/
 │   │   └── setup.ts
 │   └── web/src/
 │       ├── app/(auth)/       ← login, register, forgot-password, reset-password
-│       ├── app/(app)/       ← dashboard, workspaces, settings
+│       ├── app/(app)/        ← dashboard, workspaces, settings
 │       ├── components/ui/    ← shadcn/ui
 │       ├── components/layout/← sidebar, header, nav-item, page-wrapper
 │       ├── components/features/ ← auth, workspaces, projects, tasks, steps,

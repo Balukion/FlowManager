@@ -611,6 +611,59 @@ describe("GET /workspaces/:id/members", () => {
     expect(members).toHaveLength(2); // dono + membro
   });
 
+  it("deve incluir os dados básicos do usuário em cada membro", async () => {
+    const { access_token: tokenDono, user: dono } = await registrarUsuario({
+      email: "dono-members-user@test.com",
+      name: "Dono Workspace",
+    });
+    const { user: membro } = await registrarUsuario({
+      email: "membro-members-user@test.com",
+      name: "Membro Workspace",
+    });
+
+    const criarResponse = await criarWorkspace(tokenDono);
+    const workspaceId = criarResponse.json().data.workspace.id;
+
+    await prisma.workspaceMember.create({
+      data: {
+        workspace_id: workspaceId,
+        user_id: membro.id,
+        role: "MEMBER",
+        joined_at: new Date(),
+      },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/workspaces/${workspaceId}/members`,
+      headers: { authorization: `Bearer ${tokenDono}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const members = response.json().data.members;
+    expect(members).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          user_id: dono.id,
+          user: expect.objectContaining({
+            id: dono.id,
+            name: "Dono Workspace",
+            email: "dono-members-user@test.com",
+          }),
+        }),
+        expect.objectContaining({
+          user_id: membro.id,
+          user: expect.objectContaining({
+            id: membro.id,
+            name: "Membro Workspace",
+            email: "membro-members-user@test.com",
+          }),
+        }),
+      ]),
+    );
+  });
+
   it("deve retornar 403 se o usuário não é membro do workspace", async () => {
     // Arrange
     const { access_token: tokenDono } = await registrarUsuario({
