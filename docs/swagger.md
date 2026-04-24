@@ -1,43 +1,33 @@
-# Swagger/OpenAPI — Convenções do FlowManager
+# Swagger/OpenAPI - FlowManager Conventions
 
-Este arquivo define o padrão de documentação da API no Swagger para manter consistência entre módulos e evitar drift entre controller e schema.
+This document defines the API documentation standard used in FlowManager to keep Swagger consistent across modules and reduce drift between controllers and schemas.
 
-## Regra geral
+## General rule
 
-- Toda rota nova deve registrar `schema` no `app.METHOD(...)`
-- Documentar `params`, `query`, `body` e `response` sempre que aplicável
-- O schema deve refletir o payload real retornado pelo controller
-- Preferir helpers compartilhados em `apps/api/src/lib/api-docs.ts`
-- `204 No Content` não deve declarar body de resposta
+- Every new route must register a `schema` in `app.METHOD(...)`
+- Document `params`, `query`, `body`, and `response` whenever applicable
+- The schema must reflect the real payload returned by the controller
+- Prefer shared helpers from `apps/api/src/lib/api-docs.ts`
+- `204 No Content` must not declare a response body
 
-## Helpers compartilhados
+## Shared helpers
 
-Helpers mínimos disponíveis em `apps/api/src/lib/api-docs.ts`:
+Minimal helpers available in `apps/api/src/lib/api-docs.ts`:
 
-- `strictObjectSchema(...)` para criar objetos com `additionalProperties: false`
-- `paramsSchema(...)` para `params`
-- `querySchema(...)` para `querystring`
-- `bodySchema(...)` para `body`
+- `strictObjectSchema(...)` to create objects with `additionalProperties: false`
+- `paramsSchema(...)` for `params`
+- `querySchema(...)` for `querystring`
+- `bodySchema(...)` for `body`
 
-Escopo intencionalmente limitado:
+Intentional scope:
 
-- usar para `params`, `query` e `body`
-- não usar para abstrair `response` complexo nesta fase
-- preferir clareza e baixo risco a helpers genéricos demais
+- use them for `params`, `query`, and `body`
+- do not use them to over-abstract complex `response` schemas at this stage
+- prefer clarity and low risk over overly generic helpers
 
-## Envelope padrão de sucesso
+## Standard success envelope
 
-### Sucesso simples
-
-```json
-{
-  "data": {}
-}
-```
-
-Usar quando o controller retorna `reply.status(...).send({ data: result })`.
-
-### Sucesso sem payload relevante
+### Simple success
 
 ```json
 {
@@ -45,9 +35,19 @@ Usar quando o controller retorna `reply.status(...).send({ data: result })`.
 }
 ```
 
-Usar em actions como assign, mark-as-read, watch e similares quando o payload útil é vazio.
+Use this when the controller returns `reply.status(...).send({ data: result })`.
 
-### Sucesso com warnings
+### Success without meaningful payload
+
+```json
+{
+  "data": {}
+}
+```
+
+Use this in actions such as assign, mark-as-read, watch, and similar operations where the useful payload is empty.
+
+### Success with warnings
 
 ```json
 {
@@ -56,43 +56,43 @@ Usar em actions como assign, mark-as-read, watch e similares quando o payload ú
 }
 ```
 
-Usar somente quando o controller realmente retorna warnings.
+Use this only when the controller actually returns warnings.
 
-### Paginação cursor-based
+### Cursor-based pagination
 
 ```json
 {
   "data": [],
   "meta": {
-    "next_cursor": "uuid-ou-null"
+    "next_cursor": "uuid-or-null"
   }
 }
 ```
 
-Usar em endpoints paginados.
+Use this in paginated endpoints.
 
 ### No Content
 
-Status `204` sem body.
+Status `204` with no response body.
 
-## Envelope padrão de erro
+## Standard error envelope
 
 ```json
 {
   "error": {
     "code": "TASK_NOT_FOUND",
-    "message": "Tarefa não encontrada"
+    "message": "Task not found"
   }
 }
 ```
 
-Não é necessário inventar formatos alternativos por rota.
+There is no need to invent alternative error formats per route.
 
-## Checklist rápida para rotas novas
+## Quick checklist for new routes
 
-1. O `schema` está registrado na rota?
-2. `params` foram documentados?
-3. `query` foi documentada quando existe filtro/paginação?
-4. `body` foi documentado quando existe input?
-5. `response` bate com o controller real?
-6. Se for `204`, a rota ficou sem body?
+1. Is the `schema` registered on the route?
+2. Were `params` documented?
+3. Was `query` documented when filters or pagination exist?
+4. Was `body` documented when input exists?
+5. Does `response` match the real controller output?
+6. If the route returns `204`, was the response body omitted?

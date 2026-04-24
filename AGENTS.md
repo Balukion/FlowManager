@@ -131,6 +131,14 @@ flowmanager/
 
 ## Regras obrigatórias de implementação
 
+### Idioma obrigatório do projeto
+
+- Todo conteúdo do projeto deve ser escrito em inglês
+- Isso inclui código visível ao usuário, documentação, README, Swagger/OpenAPI, comentários, nomes de seeds de demonstração, mensagens de erro, textos de interface e descrições de PR quando forem adicionadas ao repositório
+- Se existir qualquer conteúdo em português, ele deve ser traduzido para inglês ao tocar no arquivo
+- Não misturar português e inglês no mesmo artefato
+- Exceção: este arquivo de instruções e seu espelho podem permanecer em português se essa for a convenção de manutenção interna
+
 ### TDD — sem exceção
 
 - Escreva o teste antes do código. Sempre.
@@ -674,3 +682,8 @@ Solução: criar um `describe` separado com `beforeAll` que chama `vi.stubEnv("D
 Sintoma: um teste de integração falha ao rodar em isolamento (`vitest run caminho/do/arquivo.spec.ts`), mas passa normalmente quando a suite completa roda com `turbo test`. O erro típico é algo como `Cannot destructure property 'access_token' of '...data' as it is undefined`, indicando que o endpoint retornou erro em vez de sucesso.
 Causa: `git stash` não guarda arquivos untracked. Mais importante: a suite completa deixa estado no banco de testes (registros criados nos testes de integração). Rodar um arquivo isolado depois encontra dados já existentes (ex: email duplicado), causando erros de constraint. O teste falha por estado sujo — não por bug no código.
 Solução: para verificar se uma falha é pré-existente, sempre rodar a suite completa do zero com `turbo test`, nunca isolar o arquivo suspeito depois de já ter rodado tudo. Se precisar rodar um arquivo de integração em isolamento, resetar o banco de testes antes.
+
+### Conteúdo em português escapa fácil em documentação e UI
+Sintoma: README, Swagger summaries, mensagens de erro, placeholders, labels de interface ou docs acabam com trechos em português mesmo com a base principal em inglês.
+Causa: o projeto foi iniciado com parte da documentação interna em português e isso facilita copiar texto antigo ou reaproveitar strings sem revisão final de idioma.
+Solução: tratar inglês como padrão obrigatório do produto. Sempre que tocar em um arquivo com texto visível, revisar se há qualquer trecho em português e traduzir para inglês antes de concluir a tarefa. Não deixar artefatos híbridos.
