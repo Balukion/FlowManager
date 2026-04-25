@@ -66,6 +66,23 @@ export async function buildApp() {
   await app.register(prismaPlugin);
   await app.register(authPlugin);
 
+  // Performance monitoring — log requests slower than 200ms
+  app.addHook("onResponse", async (request, reply) => {
+    if (request.url === "/health") return;
+    const duration = Math.round(reply.elapsedTime);
+    if (duration > 200) {
+      request.log.warn(
+        {
+          method: request.method,
+          url: request.url,
+          statusCode: reply.statusCode,
+          duration,
+        },
+        "Slow request",
+      );
+    }
+  });
+
   // Routes
   await app.register(authRoutes);
   await app.register(usersRoutes);
